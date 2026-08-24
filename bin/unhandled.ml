@@ -5,7 +5,8 @@ let usage () =
     \  unhandled check <dir>      analyse .cmt files under <dir>\n\
     \  unhandled facts <dir>      dump raw perform/handler facts\n\
     \  unhandled summaries <dir>  print per-function effect summaries\n\
-    \  unhandled witness <dir>    generate, compile and RUN a witness per finding\n";
+    \  unhandled witness <dir>    generate, compile and RUN a witness per finding\n\
+    \  unhandled contract <dir>   library mode: the effect contract of each function\n";
   exit 2
 
 let () =
@@ -73,6 +74,7 @@ let () =
             match f.Report.f_kind with
             | Report.Escapes e -> Effect_id.to_string e
             | Report.Unknown_effects -> "<unknown>"
+            | Report.Scheduler_mismatch (e, _, _) -> Effect_id.to_string e
           in
           match Witness.generate ~nodes ~arities f with
           | Error why -> Printf.printf "%-4s  %-26s  %-24s %s\n" id label "-" ("not constructible: " ^ why)
@@ -90,6 +92,28 @@ let () =
                 (Witness.string_of_outcome outcome))
         findings;
       Printf.printf "\n%d/%d findings confirmed by execution\n" !confirmed !total
+  | "contract" ->
+      (* Library mode. A library that performs effects is not buggy: its
+         handler lives in the application. What matters is that its contract
+         is visible, so callers know what they must handle. *)
+      let units, env, _ = Driver.analyse files in
+      List.iter
+        (fun (u : Driver.unit_facts) ->
+          let mf = u.Driver.uf_facts in
+          let rows =
+            List.rev mf.Builder.mf_nodes
+            |> List.filter_map (fun (n : Builder.node) ->
+                   let s = Solver.lookup env n.Builder.name in
+                   if Effect_set.is_empty s then None else Some (n.Builder.name, s))
+          in
+          if rows <> [] then (
+            Printf.printf "module %s\n" mf.Builder.mf_modname;
+            List.iter
+              (fun (name, s) ->
+                Printf.printf "  %-34s may perform %s\n" name (Effect_set.to_string s))
+              rows;
+            print_newline ()))
+        units
   | "facts" ->
       List.iter (fun f -> Printf.printf "cmt %s\n" f) files
   | _ -> usage ()

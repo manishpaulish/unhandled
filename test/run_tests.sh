@@ -65,4 +65,33 @@ done
 
 printf -- "------------------------------------------------------------------------------\n"
 echo "$pass passed, $fail failed"
-[ $fail -eq 0 ]
+
+# ---------------------------------------------------------------- scenarios
+# Multi-file behaviours the single-file corpus cannot express.
+echo
+echo "scenarios"
+printf -- "------------------------------------------------------------------------------\n"
+sfail=0
+scenario () { # name dir cmd expected-substring
+  local name="$1" dir="$2" cmd="$3" want="$4"
+  # Compile in dependency order. Repeated passes are simpler and more robust
+  # here than reimplementing ocamldep: a module compiles once its deps exist.
+  ( cd "$ROOT/$dir" && for _ in 1 2 3; do
+      for f in *.ml; do $OCAMLC -bin-annot -c "$f" >/dev/null 2>&1; done
+    done )
+  local got
+  got="$(UNHANDLED_OCAMLC="$OCAMLC" UNHANDLED_RUNNER="$RUN" $RUN "$UNHANDLED" "$cmd" "$ROOT/$dir" 2>&1)"
+  if echo "$got" | grep -q -- "$want"; then
+    printf "%-40s PASS\n" "$name"
+  else
+    printf "%-40s FAIL (wanted: %s)\n" "$name" "$want"; sfail=$((sfail+1))
+  fi
+  ( cd "$ROOT/$dir" && rm -f *.cm* )
+}
+scenario "cross-module escape"      test/xmodule    check    "Svc.Ping escapes unhandled"
+scenario "library contract"         test/xmodule    contract "may perform {Svc.Ping}"
+scenario "witness confirms finding" test/xmodule    witness  "1/1 findings confirmed"
+scenario "scheduler mismatch (B2)"  test/schedulers check    "E003"
+printf -- "------------------------------------------------------------------------------\n"
+[ $sfail -eq 0 ] && echo "scenarios: all passed" || echo "scenarios: $sfail failed"
+[ $((fail + sfail)) -eq 0 ]

@@ -36,6 +36,15 @@ let leq a b =
 
 let equal a b = leq a b && leq b a
 
+let remove_where pred = function
+  | Top -> Top
+  | Known s -> Known (Effect_id.Set.filter (fun e -> not (pred e)) s)
+
+(* Top cannot be enumerated, so selection returns only what we can name. *)
+let select pred = function
+  | Top -> []
+  | Known s -> Effect_id.Set.elements (Effect_id.Set.filter pred s)
+
 let mem e = function Known s -> Effect_id.Set.mem e s | Top -> true
 
 let elements = function Known s -> Effect_id.Set.elements s | Top -> []

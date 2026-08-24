@@ -3,7 +3,7 @@
 ## What works right now (verified, not claimed)
 
 Built and tested against **OCaml 5.3.0** compiled from source in a clean
-environment. `make && bash test/run_tests.sh` → **10 passed, 0 failed**, where
+environment. `make && bash test/run_tests.sh` → **10 corpus + 4 scenarios passed, 0 failed**, where
 every case is checked against the analyser's prediction *and* the program's
 actual runtime behaviour.
 
@@ -25,16 +25,18 @@ actual runtime behaviour.
 | Cross-module whole-program analysis | done |
 | Witness generation (synthesise, compile, run, confirm) | done |
 | Type-directed argument synthesis | done |
+| Library mode: effect contracts (`contract`) | done |
+| Scheduler model table + B2 mismatch detection (`E003`) | done |
+| Scenario tests (cross-module, contract, witness, B2) | done |
 
 ## Next, in order
 
-1. **Library vs executable mode** — required before any real-world sweep, or
-   library code will produce false positives at scale.
-2. **Scheduler model table** (`models/schedulers.json`) → unlocks B2
-   scheduler-mismatch findings.
-3. **QCheck generator** for the differential loop at 10k programs.
-4. **Sweep harness** over opam repos; retroactive crash corpus.
-5. 0-CFA behind `--cfa`, then LSP.
+1. **Confirm real scheduler paths** in `models/schedulers.conf` against
+   installed Eio/Riot sources. The mechanism is done; the data is provisional.
+2. **QCheck generator** for the differential loop at 10k programs.
+3. **Sweep harness** over opam repos; retroactive crash corpus.
+4. 0-CFA behind `--cfa`, then LSP.
+5. B3: boundary-crossing effects (signal handlers, finalisers, C callbacks).
 
 ## Known gaps
 

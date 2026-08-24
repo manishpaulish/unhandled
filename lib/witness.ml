@@ -74,6 +74,8 @@ let source ~target ~args ~effect_name ~arity =
 let generate ~(nodes : Builder.node list) ~arities (f : Report.finding) =
   match f.Report.f_kind with
   | Report.Unknown_effects -> Error "finding has no specific effect"
+  | Report.Scheduler_mismatch _ ->
+      Error "scheduler mismatch: witness needs the real runtime installed"
   | Report.Escapes eff -> (
       match List.find_map (fun s -> s.Solver.st_callee) f.Report.f_path with
       | None -> Error "no named function in the blame path"

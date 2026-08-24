@@ -13,6 +13,10 @@ type t =
   | Call of string * Location.t
   | Join of t list
   | Handle of t * Effect_syntax.handled
+  (* [Scheduler_run (scheduler, computation, loc)]: a runtime entry point whose
+     handlers live in a dependency we may have no .cmt for, so they come from
+     the model table rather than from analysis. *)
+  | Scheduler_run of string * t * Location.t
 
 let empty = Const Effect_set.empty
 let join ts = Join ts

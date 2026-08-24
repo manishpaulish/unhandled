@@ -1,8 +1,8 @@
 # Fallback build for environments without dune/opam (CI uses dune).
 OCAMLC  ?= ocamlc
 CL      ?= $(shell $(OCAMLC) -where)/compiler-libs
-MODULES := effect_id effect_set effect_syntax stdlib_models eff_expr \
-           builder solver report witness driver
+MODULES := effect_id effect_set effect_syntax schedulers stdlib_models \
+           eff_expr builder solver scheduler_check report witness driver
 CMOS    := $(addprefix lib/,$(addsuffix .cmo,$(MODULES)))
 
 all: unhandled

@@ -1,4 +1,7 @@
-type kind = Escapes of Effect_id.t | Unknown_effects
+type kind =
+  | Escapes of Effect_id.t
+  | Unknown_effects
+  | Scheduler_mismatch of Effect_id.t * string * string  (* effect, owner, running under *)
 
 type finding = {
   f_kind : kind;
@@ -12,7 +15,10 @@ let string_of_loc (l : Location.t) =
   Printf.sprintf "%s:%d:%d" p.Lexing.pos_fname p.Lexing.pos_lnum
     (p.Lexing.pos_cnum - p.Lexing.pos_bol)
 
-let code = function Escapes _ -> "E001" | Unknown_effects -> "W002"
+let code = function
+  | Escapes _ -> "E001"
+  | Unknown_effects -> "W002"
+  | Scheduler_mismatch _ -> "E003"
 
 let headline f =
   match f.f_kind with
@@ -20,11 +26,15 @@ let headline f =
       Printf.sprintf "effect %s escapes unhandled" (Effect_id.to_string e)
   | Unknown_effects ->
       "effects of unknown identity may escape (unresolved call)"
+  | Scheduler_mismatch (e, owner, under) ->
+      Printf.sprintf
+        "effect %s belongs to the %s scheduler but is performed under the %s runtime"
+        (Effect_id.to_string e) owner under
 
 let render buf f =
   Printf.bprintf buf "%s: %s[%s] %s\n"
     (string_of_loc f.f_loc)
-    (match f.f_kind with Escapes _ -> "error" | Unknown_effects -> "warning")
+    (match f.f_kind with Unknown_effects -> "warning" | _ -> "error")
     (code f.f_kind) (headline f);
   Printf.bprintf buf "  entry     %s\n" f.f_entry;
   List.iteri
@@ -38,7 +48,7 @@ let render buf f =
 let render_all fs =
   let buf = Buffer.create 1024 in
   List.iter (render buf) fs;
-  let errs = List.length (List.filter (fun f -> match f.f_kind with Escapes _ -> true | _ -> false) fs) in
+  let errs = List.length (List.filter (fun f -> match f.f_kind with Unknown_effects -> false | _ -> true) fs) in
   let warns = List.length fs - errs in
   Printf.bprintf buf "%d error(s), %d warning(s)\n" errs warns;
   Buffer.contents buf

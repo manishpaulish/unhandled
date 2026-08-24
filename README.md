@@ -112,6 +112,43 @@ w06   Lambda_iter.Emit            -    not constructible: no named function in t
 **A confirmed finding is a true positive by construction.** That is how this
 tool measures its own precision.
 
+## Two modes, because a library is not an application
+
+A library that performs effects is not buggy: its handler lives in the
+application. Analysing libraries as if they were programs is how an effect
+checker drowns in false positives. So the same code gets two readings.
+
+```
+$ unhandled contract test/xmodule        # library mode: what callers must handle
+module Svc
+  Svc.service                        may perform {Svc.Ping}
+  Svc.run_all                        may perform {Svc.Ping}
+
+$ unhandled check test/xmodule           # executable mode: who forgot to handle it
+app.ml:2:9: error[E001] effect Svc.Ping escapes unhandled
+  entry     App (module initialisation)
+  via       app.ml:2:9  calls Svc.run_all
+```
+
+## Scheduler mismatches
+
+OCaml's concurrency libraries are mutually incompatible effect schedulers.
+Performing one library's effect under another's runtime is a guaranteed crash,
+and it is not a missing handler: a handler is installed, it just belongs to the
+wrong library. That gets its own diagnostic.
+
+```ocaml
+let () = Sched_b.run (fun () -> Sched_a.yield ())
+```
+```
+mix.ml:2:9: error[E003] effect Sched_a.Yield belongs to the mock_a scheduler
+                        but is performed under the mock_b runtime
+```
+
+Handlers for Eio, Riot, Moonpool and Miou live inside compiled dependencies we
+often have no `.cmt` for, so they are supplied as data in
+`models/schedulers.conf` rather than discovered by analysis.
+
 ## Documentation
 
 - `docs/TYPEDTREE-NOTES.md` — empirical notes on the OCaml 5.3 typed tree. Read

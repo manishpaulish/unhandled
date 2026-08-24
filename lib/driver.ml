@@ -74,4 +74,43 @@ let analyse files =
                    { Report.f_kind = Report.Escapes e; f_entry = entry; f_loc = loc; f_path = path }))
       units
   in
-  (units, env, findings)
+  (* B2: scheduler mismatches, found anywhere in the program rather than only
+     at entry points, since the wrong runtime is a local mistake. *)
+  let roots =
+    List.map (fun u -> u.uf_facts.Builder.mf_init) units
+    @ List.concat_map
+        (fun u -> List.map (fun (n : Builder.node) -> n.Builder.body) u.uf_facts.Builder.mf_nodes)
+        units
+  in
+  let b2 =
+    Scheduler_check.check env roots
+    |> List.map (fun (m : Scheduler_check.mismatch) ->
+           { Report.f_kind =
+               Report.Scheduler_mismatch (m.Scheduler_check.m_effect,
+                                          m.Scheduler_check.m_owner,
+                                          m.Scheduler_check.m_running_under);
+             f_entry =
+               Printf.sprintf "%s runtime" m.Scheduler_check.m_running_under;
+             f_loc = m.Scheduler_check.m_loc;
+             f_path = [] })
+  in
+  (* An effect flagged as a scheduler mismatch also escapes, but "you used the
+     wrong runtime" is the useful diagnosis; reporting both just doubles the
+     noise for one mistake. *)
+  let mismatched =
+    List.filter_map
+      (fun (f : Report.finding) ->
+        match f.Report.f_kind with
+        | Report.Scheduler_mismatch (e, _, _) -> Some e
+        | _ -> None)
+      b2
+  in
+  let findings =
+    List.filter
+      (fun (f : Report.finding) ->
+        match f.Report.f_kind with
+        | Report.Escapes e -> not (List.exists (Effect_id.equal e) mismatched)
+        | _ -> true)
+      findings
+  in
+  (units, env, findings @ b2)

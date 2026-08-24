@@ -20,12 +20,18 @@ that reports them.
   warning about unknown effects rather than a specific escape.
 - `effc` arms whose right-hand side is not a literal `Some`/`None` are treated
   as not handled.
-- Library code analysed on its own will appear to leak effects: its handlers
-  live in the application. Library mode (reporting effect *contracts* rather
-  than errors) is planned; until then analyse whole programs.
+- Library mode (`unhandled contract`) reports effect contracts rather than
+  errors, so libraries no longer look broken. Errors remain reserved for whole
+  programs and for scheduler mismatches.
+
+- The scheduler table in `models/schedulers.conf` carries the real entry-point
+  paths for Eio, Riot, Moonpool and Miou, but those have not yet been confirmed
+  against installed sources. The detection mechanism is independent of the
+  data, and the mock schedulers in `test/schedulers` exercise it.
 
 ## Not yet implemented
 
-- Scheduler-mismatch detection (B2) and boundary-crossing effects (B3).
-- Witness generation.
+- Boundary-crossing effects (B3): signal handlers, finalisers, GC alarms, and
+  effects crossing C `caml_callback` frames.
+- 0-CFA for function values that flow through variables and data structures.
 - LSP server.

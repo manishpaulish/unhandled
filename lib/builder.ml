@@ -90,6 +90,15 @@ and of_apply ctx e f args =
           (* perform applied to a non-literal effect: identity unknown. *)
           | None -> Eff_expr.Unknown e.exp_loc)
       | _ -> Eff_expr.Unknown e.exp_loc)
+  | Texp_ident (p, _, _) when Schedulers.scheduler_of_run (Path.name p) <> None ->
+      let sch = Option.get (Schedulers.scheduler_of_run (Path.name p)) in
+      let comp_eff =
+        match List.nth_opt arg_exprs 0 with
+        | Some c -> effects_of_calling ctx c
+        | None -> Eff_expr.Unknown e.exp_loc
+      in
+      let others = List.filteri (fun i _ -> i <> 0) arg_exprs |> List.map (of_expr ctx) in
+      Eff_expr.Join (Eff_expr.Scheduler_run (sch, comp_eff, e.exp_loc) :: others)
   | Texp_ident (p, _, _) when Effect_syntax.handler_arg_index p <> None ->
       let idx = Option.get (Effect_syntax.handler_arg_index p) in
       let comp = List.nth_opt arg_exprs 0 in
