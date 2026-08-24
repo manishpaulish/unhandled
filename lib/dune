@@ -1,6 +1,11 @@
 (library
  (name unhandled_lib)
  (wrapped false)
+ ; compat_53.ml and compat_54.ml are inputs to the rules below, not modules of
+ ; the library. Without this exclusion dune compiles both, and the one for the
+ ; other compiler fails with "Unbound module Data_types" (or Types).
+ (modules
+  (:standard \ compat_53 compat_54))
  (libraries compiler-libs.common))
 
 ; Constructor descriptions moved from Types to Data_types in OCaml 5.4.
