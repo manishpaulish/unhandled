@@ -75,6 +75,12 @@ let rec of_expr ctx (e : expression) : Eff_expr.t =
 (* Effects of *calling* an expression of function type. *)
 and effects_of_calling ctx (e : expression) : Eff_expr.t =
   match e.exp_desc with
+  (* A function passed to a combinator gets the same treatment as one called
+     directly. Without this, [List.filter Sys.file_exists paths] produced an
+     unresolved call to a function the models already know is pure, which the
+     first sweep duly reported as a cause of blindness. *)
+  | Texp_ident (p, _, _) when Stdlib_models.is_known_pure (Path.name p) ->
+      Eff_expr.empty
   | Texp_ident (p, _, _) -> Eff_expr.Call (qualify ctx p, e.exp_loc)
   | Texp_function (_, Tfunction_body b) -> of_expr ctx b
   | Texp_function (_, Tfunction_cases { cases; _ }) ->

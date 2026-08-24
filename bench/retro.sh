@@ -28,13 +28,23 @@ fi
 cd "$WORK"
 
 # Accept either an explicit commit or a search term matched against messages.
-if git rev-parse --verify -q "$REF^{commit}" >/dev/null; then
+#
+# Order matters. The first run of this script was given "2271", meaning issue
+# #2271, and git happily resolved it as an abbreviated commit SHA -- so it
+# analysed an unrelated commit and reported nothing. Only treat the argument as
+# a SHA when it actually looks like one.
+if [ ${#REF} -ge 7 ] && echo "$REF" | grep -qE '^[0-9a-f]+$' \
+   && git rev-parse --verify -q "$REF^{commit}" >/dev/null; then
   FIX="$REF"
 else
   echo "searching commit messages for '$REF'"
   git log --all --oneline --grep="$REF" | head -20
   FIX="$(git log --all --format=%H --grep="$REF" | head -1)"
-  [ -z "$FIX" ] && { echo "no commit matches '$REF'"; exit 1; }
+  if [ -z "$FIX" ]; then
+    echo "no commit message matches '$REF'."
+    echo "Try the issue number, a phrase from the fix, or a full commit SHA."
+    exit 1
+  fi
 fi
 PARENT="$(git rev-parse "$FIX^")"
 echo "fix     $FIX"

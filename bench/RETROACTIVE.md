@@ -41,6 +41,29 @@ Two implementation bugs were found by reading this report:
   `Effect.Unhandled`. Not our target class: a runtime defect, not a missing
   handler. Recorded so it is not mistaken for a finding.
 
+## What the first retroactive attempt taught us
+
+Two things, before any crash was reproduced.
+
+`retro.sh masc ... 2271` printed `fix 2271` and analysed an unrelated commit:
+git resolved the issue number as an abbreviated commit SHA. The script now only
+treats the argument as a SHA when it is at least seven hex characters and
+resolves, and searches commit messages first otherwise.
+
+The sweep's blindness ranking was dominated by one library:
+
+```
+38  Alcotest.test_case
+37  Alcotest.run
+ 4  Alcotest.testable
+```
+
+Roughly 79 of 107 unknown-effect warnings came from Alcotest, which meant
+**every test executable was opaque** -- and test code is where these crashes
+actually happen, R1 included. `Alcotest.test_case` takes the test body as a
+function argument, so it is a higher-order combinator like `List.iter` and is
+now modelled as one. `test/alcotest_like` covers it.
+
 ## Method
 
 For each entry: check out the parent of the fixing commit, build with

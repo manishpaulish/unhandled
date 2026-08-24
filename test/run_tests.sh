@@ -96,6 +96,7 @@ scenario "re-exported effect alias"  test/alias     check    "0 error(s)"
 scenario "finaliser boundary (B3)"   test/boundary  check    "from a finaliser"
 scenario "signal handler (B3)"       test/boundary  check    "from a signal handler"
 scenario "Effect.Unhandled guard"    test/guard     check    "1 error(s)"
+scenario "effect inside a test case"  test/alcotest_like check "Suite.Needs_runtime escapes"
 printf -- "------------------------------------------------------------------------------\n"
 [ $sfail -eq 0 ] && echo "scenarios: all passed" || echo "scenarios: $sfail failed"
 [ $((fail + sfail)) -eq 0 ]

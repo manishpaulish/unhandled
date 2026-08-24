@@ -18,7 +18,26 @@ let combinators : (string * int list) list =
     ("Stdlib.Option.iter", [ 0 ]); ("Stdlib.Option.map", [ 0 ]);
     ("Stdlib.Result.map", [ 0 ]); ("Stdlib.Fun.protect", [ 0 ]);
     ("Stdlib.Domain.spawn", [ 0 ]);
-    ("Stdlib.Hashtbl.iter", [ 0 ]); ("Stdlib.String.iter", [ 0 ]) ]
+    ("Stdlib.Hashtbl.iter", [ 0 ]); ("Stdlib.String.iter", [ 0 ]);
+    (* Third-party combinators, added because the first ecosystem sweep named
+       them as the dominant cause of blindness: Alcotest.test_case and
+       Alcotest.run accounted for roughly 79 of 107 unknown-effect warnings.
+       Every test executable was opaque, and test code is exactly where the
+       documented crashes live.
+
+       The test body is attributed where the case is constructed rather than
+       where the suite runs. Both happen during the same module
+       initialisation, so the total for the module is right, and it is what
+       makes the body visible at all. *)
+    ("Alcotest.test_case", [ 2 ]);
+    ("Alcotest.test_case_sync", [ 2 ]);
+    ("Alcotest.run", []);
+    ("Alcotest.run_with_args", []);
+    ("Alcotest.testable", []);
+    ("Alcotest.check", []);
+    ("Alcotest.check'", []);
+    ("Alcotest.fail", []);
+    ("Alcotest.failf", []) ]
 
 let is_combinator p = List.assoc_opt p combinators
 
@@ -46,11 +65,19 @@ let pure_prefixes =
    to Printf or Gc; it is stated in docs/LIMITATIONS.md. *)
 let may_run_user_code = [ "Stdlib.Effect."; "Stdlib.Lazy."; "Stdlib.Domain." ]
 
+(* Third-party libraries that transform data and never call back into
+   caller-supplied code, so they cannot perform a caller's effect. Kept short
+   and explicit: this is an assumption about someone else's library, and a
+   wrong entry here hides bugs rather than merely adding noise. *)
+let pure_library_prefixes =
+  [ "Yojson."; "Re."; "Fmt."; "Astring."; "Uutf."; "Sexplib0." ]
+
 let starts_with pre s =
   String.length s >= String.length pre && String.sub s 0 (String.length pre) = pre
 
 let is_known_pure p =
   List.mem p pure_prefixes
+  || List.exists (fun m -> starts_with m p) pure_library_prefixes
   || (starts_with "Stdlib." p
       && (not (List.exists (fun m -> starts_with m p) may_run_user_code))
       && is_combinator p = None)
