@@ -187,6 +187,13 @@ and of_apply ctx e f args =
         List.filteri (fun i _ -> i <> 0) arg_exprs |> List.map (of_expr ctx)
       in
       Eff_expr.Join (Eff_expr.Handle (comp_eff, handled) :: others)
+  (* Calling a scheduler's API requires its runtime, whether or not we have
+     source for it. *)
+  | Texp_ident (p, _, _)
+    when Schedulers.api_requirement (Path.name p) <> None ->
+      let _, eff = Option.get (Schedulers.api_requirement (Path.name p)) in
+      Eff_expr.Join
+        (Eff_expr.Perform (Effect_id.of_string eff, e.exp_loc) :: arg_effects)
   | Texp_ident (p, _, _) -> (
       let name = Path.name p in
       match Stdlib_models.is_combinator name with

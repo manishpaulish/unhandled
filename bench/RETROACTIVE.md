@@ -117,6 +117,31 @@ tuned away, it was the analysis being blind to the most common real-world
 failure mode. Whether the fix changes the number is the next measurement, and
 whatever it returns goes in the table.
 
+## Why 0 of 6, part two: no effect model for the dependency
+
+Modelling handler-scope transfers did not change the number, and the deeper
+reason is more basic. Eio is an *installed dependency*, so no `.cmt` files
+exist for it. A test that calls `Eio.Mutex.use_rw` therefore resolves to
+"unresolved call": an anonymous unknown carrying no named effect. The escape
+check has nothing to report, and `Boundary_check` selects only *known* effects,
+so it has nothing either.
+
+The scheduler table said which entry points *install* handlers. Nothing said
+which calls *require* them.
+
+`api` and `requires` lines close that gap: a call matching `Eio.` performs
+`Eio__core.Suspend.Suspend`, so a dependency we cannot see still contributes a
+named effect. `test/eio_api` reproduces the masc shape and is now caught:
+
+```
+bad_test.ml:3:9: error[E001] effect Eio__core.Suspend.Suspend escapes unhandled
+  via   bad_test.ml:3:9   calls Bad_test.helper
+  then  bad_test.ml:2:16  performs Suspend
+```
+
+`test/eio_ok` is the same call under `Eio_main.run` and stays clean, so the
+rule discriminates rather than simply flagging everything that mentions Eio.
+
 ## Method
 
 For each entry: check out the parent of the fixing commit, build with

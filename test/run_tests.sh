@@ -99,6 +99,8 @@ scenario "Effect.Unhandled guard"    test/guard     check    "1 error(s)"
 scenario "effect inside a test case"  test/alcotest_like check "Suite.Needs_runtime escapes"
 scenario "call via module alias"      test/modalias  check    "Worker.Job escapes"
 scenario "handler-scope transfer"     test/transfer  check    "a new domain"
+scenario "Eio API without a runtime"  test/eio_api   check    "Suspend escapes unhandled"
+scenario "Eio API under Eio_main.run" test/eio_ok    check    "0 error(s)"
 printf -- "------------------------------------------------------------------------------\n"
 [ $sfail -eq 0 ] && echo "scenarios: all passed" || echo "scenarios: $sfail failed"
 [ $((fail + sfail)) -eq 0 ]
