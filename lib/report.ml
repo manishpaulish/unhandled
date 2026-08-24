@@ -35,8 +35,7 @@ let headline f =
         "effect %s belongs to the %s scheduler but is performed under the %s runtime"
         (Effect_id.to_string e) owner under
   | Boundary_crossing (e, why) ->
-      Printf.sprintf
-        "effect %s can be performed from %s, where no handler can ever catch it"
+      Printf.sprintf "effect %s can be performed from %s"
         (Effect_id.to_string e) why
 
 let render buf f =

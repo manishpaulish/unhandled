@@ -17,7 +17,6 @@ let combinators : (string * int list) list =
     ("Stdlib.Seq.iter", [ 0 ]); ("Stdlib.Seq.map", [ 0 ]);
     ("Stdlib.Option.iter", [ 0 ]); ("Stdlib.Option.map", [ 0 ]);
     ("Stdlib.Result.map", [ 0 ]); ("Stdlib.Fun.protect", [ 0 ]);
-    ("Stdlib.Domain.spawn", [ 0 ]);
     ("Stdlib.Hashtbl.iter", [ 0 ]); ("Stdlib.String.iter", [ 0 ]);
     (* Third-party combinators, added because the first ecosystem sweep named
        them as the dominant cause of blindness: Alcotest.test_case and
@@ -56,7 +55,12 @@ let pure_prefixes =
     "Stdlib.String.length"; "Stdlib.String.concat"; "Stdlib.String.sub";
     "Stdlib.Printf.printf"; "Stdlib.Printf.sprintf"; "Stdlib.Format.printf";
     "Stdlib.Effect.Deep.continue"; "Stdlib.Effect.Deep.discontinue";
-    "Stdlib.Effect.Shallow.fiber" ]
+    "Stdlib.Effect.Shallow.fiber";
+    (* Domain is excluded from the blanket stdlib rule because spawn runs
+       caller code; the rest of the module does not. *)
+    "Stdlib.Domain.join"; "Stdlib.Domain.self"; "Stdlib.Domain.cpu_relax";
+    "Stdlib.Domain.recommended_domain_count"; "Stdlib.Domain.is_main_domain";
+    "Stdlib.Thread.join"; "Stdlib.Thread.self"; "Thread.join"; "Thread.self" ]
 
 (* Modules whose functions can run caller-supplied code, and therefore can
    perform caller effects. Everything else in the standard library performs no

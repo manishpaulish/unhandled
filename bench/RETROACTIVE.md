@@ -82,6 +82,41 @@ actually happen, R1 included. `Alcotest.test_case` takes the test body as a
 function argument, so it is a higher-order combinator like `List.iter` and is
 now modelled as one. `test/alcotest_like` covers it.
 
+## Result of the first batch: caught 0 of 6
+
+All six parents built and were analysed. Nothing was reported. This is the most
+useful result the project has produced, because the reason is structural.
+
+Read what those commits actually fix:
+
+- *wrap coverage test helpers in Eio context*
+- *wrap Eio-dependent tests in Eio context*
+- *wrap state tests in Eio.Switch.run for Cancel.protect*
+- *guard Domain_pool_ref submits against non-Eio callers*
+- *surface an actionable error when Eio work runs on a bare systhread*
+
+None of these is a handler missing from the call graph. Each is a **dynamic
+context transfer**: code moves to a systhread, a new domain, or a fiber outside
+the enclosing switch, and the handler stack installed at the call site does not
+travel with it. The analysis modelled lexical and call-graph scope only, so it
+had nothing to say.
+
+Worse, `Domain.spawn` was modelled as a *combinator*, attributing the spawned
+function's effects to its caller. That is exactly backwards: the spawned code
+runs where the caller's handlers do not exist. The model actively asserted the
+opposite of the truth.
+
+Handler-scope transfers are now a boundary class (`Domain.spawn`,
+`Thread.create`, `Eio_unix.run_in_systhread`), verified against the runtime in
+`test/transfer/`: a program with a handler wrapped around
+`Domain.join (Domain.spawn job)` still dies with
+`Effect.Unhandled(Spawned.Work)`.
+
+The honest reading for the report: a catch rate of 0/6 was not noise to be
+tuned away, it was the analysis being blind to the most common real-world
+failure mode. Whether the fix changes the number is the next measurement, and
+whatever it returns goes in the table.
+
 ## Method
 
 For each entry: check out the parent of the fixing commit, build with

@@ -36,6 +36,8 @@ actual runtime behaviour.
 | Self-host: 0 errors on own sources, wired into CI | done |
 | OCaml 5.3 + 5.4 support via compat shim | done (5.4 path verified by CI) |
 | `try ... with Effect.Unhandled` guard recognition | done |
+| Handler-scope transfers: Domain.spawn, Thread.create, systhreads | done |
+| Alcotest / Unix / module-alias resolution (blindness 48 -> 20 on masc) | done |
 | Retroactive corpus seeded from real crash reports | started, needs opam to reproduce |
 | Scenario tests (cross-module, contract, witness, B2) | done |
 | Differential fuzzer, runtime as oracle | done |
