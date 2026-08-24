@@ -10,3 +10,4 @@ _unhandled/
 _unhandled/
 test/**/*.cmt
 test/fuzz/gen
+lib/compat.ml

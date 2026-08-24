@@ -2,3 +2,22 @@
  (name unhandled_lib)
  (wrapped false)
  (libraries compiler-libs.common))
+
+; Constructor descriptions moved from Types to Data_types in OCaml 5.4.
+; Pick the matching shim rather than sprinkling version checks through the
+; analysis code.
+(rule
+ (targets compat.ml)
+ (deps compat_53.ml)
+ (enabled_if
+  (< %{ocaml_version} 5.4.0))
+ (action
+  (copy compat_53.ml compat.ml)))
+
+(rule
+ (targets compat.ml)
+ (deps compat_54.ml)
+ (enabled_if
+  (>= %{ocaml_version} 5.4.0))
+ (action
+  (copy compat_54.ml compat.ml)))

@@ -97,7 +97,7 @@ and of_apply ctx e f args =
         (* Sys.signal takes Signal_handle f, not f: unwrap the constructor so
            the handler itself is what gets analysed. *)
         | Some { exp_desc = Texp_construct (_, cd, [ inner ]); _ }
-          when String.equal cd.Types.cstr_name "Signal_handle" -> Some inner
+          when String.equal (Compat.cstr_name cd) "Signal_handle" -> Some inner
         | other -> other
       in
       let inner_eff =

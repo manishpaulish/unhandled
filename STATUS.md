@@ -34,6 +34,7 @@ actual runtime behaviour.
 | JSON output (`check --json`) | done |
 | Sweep harness (`bench/sweep.sh`, 13 verified repos) | ready, needs opam |
 | Self-host: 0 errors on own sources, wired into CI | done |
+| OCaml 5.3 + 5.4 support via compat shim | done (5.4 path verified by CI) |
 | Scenario tests (cross-module, contract, witness, B2) | done |
 | Differential fuzzer, runtime as oracle | done |
 | **1000 generated programs: 0 false negatives** | measured |

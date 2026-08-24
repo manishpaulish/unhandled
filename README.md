@@ -46,6 +46,14 @@ Week 1 of SegFault 2026. Working today:
 - effect-polymorphic summaries for higher-order stdlib combinators
 - blame paths from module entry down to the offending `perform`
 
+## Requirements
+
+OCaml **5.3 or newer**. `Texp_match` and `Texp_try` only gained their
+effect-case lists in 5.3, so earlier compilers cannot represent the construct
+this tool analyses; `match ... with effect` did not exist before 5.3 either.
+5.4 is supported through a small compatibility shim, since it moved
+constructor descriptions from `Types` to `Data_types`.
+
 ## Build
 
 ```

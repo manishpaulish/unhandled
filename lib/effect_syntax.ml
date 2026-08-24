@@ -35,9 +35,9 @@ let is_perform (p : Path.t) = List.mem (Path.name p) perform_paths
 let effect_of_expr ~modname (e : expression) =
   match e.exp_desc with
   | Texp_construct (_, cd, _) -> (
-      match cd.cstr_tag with
-      | Types.Cstr_extension (p, _) -> Some (Effect_id.of_path ~modname p, cd.cstr_arity)
-      | _ -> None)
+      match Compat.ext_path cd with
+      | Some p -> Some (Effect_id.of_path ~modname p, Compat.cstr_arity cd)
+      | None -> None)
   | _ -> None
 
 (* ------------------------------------------------------- effect-case patterns *)
@@ -47,10 +47,9 @@ let rec effect_of_pattern :
  fun ~modname p ->
   match p.pat_desc with
   | Tpat_construct (_, cd, _, _) -> (
-      match cd.cstr_tag with
-      | Types.Cstr_extension (path, _) ->
-          Only (Effect_id.Set.singleton (Effect_id.of_path ~modname path))
-      | _ -> handled_empty)
+      match Compat.ext_path cd with
+      | Some path -> Only (Effect_id.Set.singleton (Effect_id.of_path ~modname path))
+      | None -> handled_empty)
   | Tpat_any | Tpat_var _ -> All
   | Tpat_or (a, b, _) ->
       handled_join (effect_of_pattern ~modname a) (effect_of_pattern ~modname b)
@@ -86,12 +85,12 @@ let handler_arg_index (p : Path.t) =
 
 let is_some_constructor (e : expression) =
   match e.exp_desc with
-  | Texp_construct (_, cd, _) -> String.equal cd.cstr_name "Some"
+  | Texp_construct (_, cd, _) -> String.equal (Compat.cstr_name cd) "Some"
   | _ -> false
 
 let is_none_constructor (e : expression) =
   match e.exp_desc with
-  | Texp_construct (_, cd, _) -> String.equal cd.cstr_name "None"
+  | Texp_construct (_, cd, _) -> String.equal (Compat.cstr_name cd) "None"
   | _ -> false
 
 (* Which effects does an [effc] function actually handle?

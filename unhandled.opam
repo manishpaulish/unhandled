@@ -17,7 +17,7 @@ homepage: "https://github.com/manishpaulish/unhandled"
 bug-reports: "https://github.com/manishpaulish/unhandled/issues"
 dev-repo: "git+https://github.com/manishpaulish/unhandled.git"
 depends: [
-  "ocaml" {>= "5.1"}
+  "ocaml" {>= "5.3"}
   "dune" {>= "3.0"}
 ]
 build: [

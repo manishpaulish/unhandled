@@ -6,7 +6,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ocaml-compiler: ["5.1", "5.2", "5.3"]
+        # 5.3 is the floor: Texp_match and Texp_try only gained their
+        # effect-case lists in 5.3, so earlier compilers cannot express the
+        # thing this tool analyses. 5.4 moved constructor descriptions from
+        # Types to Data_types, which lib/compat_*.ml handles.
+        ocaml-compiler: ["5.3", "5.4"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

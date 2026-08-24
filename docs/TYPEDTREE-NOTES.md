@@ -175,3 +175,24 @@ pre-pass has to complete before the first summary is built, because identity
 must already be canonical when the first set is constructed.
 
 Regression fixture: `test/alias/`.
+
+## 9. Compiler version floor and the 5.4 move
+
+Verified against the compilers' own `typing/typedtree.mli`:
+
+| | 5.2 | 5.3 | 5.4 |
+|---|---|---|---|
+| `Texp_match` | `expr * computation case list * partial` | `expr * computation case list * value case list * partial` | same as 5.3 |
+| `Texp_try` | `expr * value case list` | `expr * value case list * value case list` | same as 5.3 |
+| constructor descriptions | `Types` | `Types` | **`Data_types`** |
+
+**5.3 is the floor.** The effect-case lists only appear in 5.3, so on 5.1/5.2
+the typed tree cannot express the thing this tool analyses. That is not a
+portability gap to paper over: `match ... with effect` did not exist before
+5.3 either.
+
+**5.4 moved `constructor_description` and `Cstr_extension` from `Types` to a
+new `Data_types` module, with no alias left behind.** `lib/compat_53.ml` and
+`lib/compat_54.ml` isolate that; dune picks one on `%{ocaml_version}`. Call
+sites must not annotate the argument type, because the type differs between
+the two shims and inference is what makes the same code compile on both.
