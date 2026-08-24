@@ -167,6 +167,35 @@ The runner refuses to start unless the analyser flags a known-bad probe first.
 Without that guard a broken build reads as "predicted clean" on every seed and
 the run reports a wall of false negatives that are really a missing binary.
 
+## Incremental checks
+
+Summaries are cached per module, keyed by the digest of the `.cmt` file. The
+expensive part of a run is reading typed trees and building summaries; the
+fixpoint itself is cheap, so an unchanged project re-checks in near-zero work.
+
+```
+$ bash bench/perf.sh
+modules: 200
+consistency: cached and uncached output identical
+cold: 0.18s
+warm: 0.06s
+warm: 0.05s
+```
+
+The consistency line matters more than the timings: a cache that changes the
+answer is worse than no cache, so `perf.sh` compares cached against
+`--no-cache` output byte for byte before reporting any number. `--no-cache`
+also exists so a suspected cache bug can be ruled in or out in one run.
+
+Honest caveat on the benchmark: those 200 modules are small and synthetic.
+The shape of the result (reading trees dominates, caching removes it) holds on
+real projects, but the ratio on a large codebase has not been measured.
+
+One subtlety the cache has to respect: alias registration is a side effect of
+building, so a cached entry carries the aliases its module contributed and
+replays them on a hit. Without that, a second run would resolve fewer names
+than the first and quietly report different findings.
+
 ## Two modes, because a library is not an application
 
 A library that performs effects is not buggy: its handler lives in the

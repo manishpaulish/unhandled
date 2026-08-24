@@ -40,6 +40,7 @@ actual runtime behaviour.
 | Alcotest / Unix / module-alias resolution (blindness 48 -> 20 on masc) | done |
 | Retroactive corpus: 6 commits, caught 0, build failed 0 | measured; see bench/NEGATIVE-RESULT.md |
 | Eio API requirement model (`api`/`requires`) | done |
+| Incremental cache: 200 modules, cold 0.18s / warm 0.05s | done, consistency-checked |
 | Scenario tests (cross-module, contract, witness, B2) | done |
 | Differential fuzzer, runtime as oracle | done |
 | **1000 generated programs: 0 false negatives** | measured |

@@ -42,19 +42,13 @@ let load file =
       | _ -> None)
   | exception _ -> None
 
-(* Two phases: collect rebinding aliases from every unit, then build. Effect
-   identity must already be canonical when the first summary is constructed. *)
-let collect_aliases files =
-  List.iter
-    (fun file ->
-      match Cmt_format.read_cmt file with
-      | cmt -> (
-          match cmt.Cmt_format.cmt_annots with
-          | Cmt_format.Implementation str ->
-              Builder.collect_aliases ~modname:cmt.Cmt_format.cmt_modname str
-          | _ -> ())
-      | exception _ -> ())
-    files
+(* Two phases, and the order is load-bearing: every unit's aliases must be
+   registered before any summary is built, or a module analysed early resolves
+   fewer names than the same module analysed late.
+
+   The cache preserves that. A hit replays the aliases its module contributed
+   without touching the typed tree; a miss reads the tree once in phase one and
+   the structure is carried into phase two rather than read again. *)
 
 let dedup_by_modname units =
   let seen = Hashtbl.create 64 in
@@ -64,9 +58,46 @@ let dedup_by_modname units =
       if Hashtbl.mem seen m then false else (Hashtbl.add seen m (); true))
     units
 
+type pending =
+  | Cached of unit_facts
+  | Fresh of string * string * Typedtree.structure * string option
+      (* file, modname, tree, source *)
+
+let phase_one file =
+  match Cache.load file with
+  | Some e ->
+      Some (Cached { uf_file = file; uf_source = e.Cache.e_source;
+                     uf_facts = e.Cache.e_facts })
+  | None -> (
+      match Cmt_format.read_cmt file with
+      | cmt -> (
+          match cmt.Cmt_format.cmt_annots with
+          | Cmt_format.Implementation str ->
+              let modname = cmt.Cmt_format.cmt_modname in
+              ignore (Builder.collect_aliases ~modname str);
+              ignore (Builder.collect_module_aliases ~unit_name:modname ~modname str);
+              Some (Fresh (file, modname, str, resolve_source file cmt))
+          | _ -> None)
+      | exception _ -> None)
+
+let phase_two = function
+  | Cached u -> Some u
+  | Fresh (file, modname, str, source) ->
+      (* Aliases were registered in phase one; re-collecting here would only
+         repeat the same registrations, so ask for them purely to cache them. *)
+      let eff_aliases = Builder.collect_aliases ~modname str in
+      let mod_aliases =
+        Builder.collect_module_aliases ~unit_name:modname ~modname str
+      in
+      let facts = Builder.build ~modname str in
+      Cache.store file
+        { Cache.e_facts = facts; e_source = source;
+          e_effect_aliases = eff_aliases; e_module_aliases = mod_aliases };
+      Some { uf_file = file; uf_source = source; uf_facts = facts }
+
 let analyse files =
-  collect_aliases files;
-  let units = dedup_by_modname (List.filter_map load files) in
+  let pending = List.filter_map phase_one files in
+  let units = dedup_by_modname (List.filter_map phase_two pending) in
   let nodes = List.concat_map (fun u -> u.uf_facts.Builder.mf_nodes) units in
   let env = Solver.solve nodes in
   let findings =

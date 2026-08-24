@@ -6,7 +6,10 @@ type node = {
   name : string;
   loc : Location.t;
   body : Eff_expr.t;
-  ntype : Types.type_expr option;  (* type of the bound function, for witnesses *)
+  (* Witness arguments, resolved to concrete syntax while the typed tree is in
+     hand. Storing a Types.type_expr here would make summaries uncacheable:
+     it is a cyclic compiler structure and cannot be marshalled. *)
+  nargs : string list option;
 }
 
 type module_facts = {
@@ -36,6 +39,9 @@ let module_aliases : (string, string) Hashtbl.t = Hashtbl.create 64
 let register_module_alias ~unit_name ~alias ~target =
   Hashtbl.replace module_aliases (unit_name ^ "|" ^ alias) target
 
+(* Used by the cache to replay an entry's aliases, which are already keyed. *)
+let register_module_alias_raw key target = Hashtbl.replace module_aliases key target
+
 let resolve_alias ~unit_name name =
   match String.index_opt name '.' with
   | None -> name
@@ -46,15 +52,16 @@ let resolve_alias ~unit_name name =
        | Some target -> target ^ rest
        | None -> name)
 
-let rec collect_module_aliases ~unit_name ~modname (str : structure) =
+let rec collect_module_aliases_into acc ~unit_name ~modname (str : structure) =
   List.iter
     (fun item ->
       match item.str_desc with
       | Tstr_module { mb_id = Some id; mb_expr = { mod_desc = Tmod_ident (p, _); _ }; _ } ->
-          register_module_alias ~unit_name ~alias:(Ident.name id)
-            ~target:(Path.name p)
+          let alias = Ident.name id and target = Path.name p in
+          register_module_alias ~unit_name ~alias ~target;
+          acc := (unit_name ^ "|" ^ alias, target) :: !acc
       | Tstr_module { mb_id = Some id; mb_expr = { mod_desc = Tmod_structure sub; _ }; _ } ->
-          collect_module_aliases ~unit_name
+          collect_module_aliases_into acc ~unit_name
             ~modname:(modname ^ "." ^ Ident.name id) sub
       | _ -> ())
     str.str_items
@@ -226,7 +233,8 @@ and bind_value ctx (vb : value_binding) : Eff_expr.t =
       in
       let body = effects_of_calling ctx vb.vb_expr in
       ctx.nodes <-
-        { name = qname; loc = vb.vb_loc; body; ntype = Some vb.vb_expr.exp_type }
+        { name = qname; loc = vb.vb_loc; body;
+          nargs = Synth.args_for vb.vb_expr.exp_type }
         :: ctx.nodes;
       Eff_expr.empty
   | _ -> of_expr ctx vb.vb_expr
@@ -235,7 +243,12 @@ and bind_value ctx (vb : value_binding) : Eff_expr.t =
    can be canonicalised before any analysis runs. Deliberately separate from
    the main build, because the map must be complete for the very first
    [Effect_id.of_path] call. *)
-let rec collect_aliases ~modname (str : structure) =
+let collect_module_aliases ~unit_name ~modname str =
+  let acc = ref [] in
+  collect_module_aliases_into acc ~unit_name ~modname str;
+  !acc
+
+let rec collect_aliases_into acc ~modname (str : structure) =
   List.iter
     (fun item ->
       match item.str_desc with
@@ -244,9 +257,10 @@ let rec collect_aliases ~modname (str : structure) =
             (fun (ext : extension_constructor) ->
               match ext.ext_kind with
               | Text_rebind (target, _) ->
-                  Effect_id.register_alias
-                    ~alias:(modname ^ "." ^ Ident.name ext.ext_id)
-                    ~target:(Path.name target)
+                  let alias = modname ^ "." ^ Ident.name ext.ext_id in
+                  let target = Path.name target in
+                  Effect_id.register_alias ~alias ~target;
+                  acc := (alias, target) :: !acc
               | Text_decl _ -> ())
             te.tyext_constructors
       | Tstr_module mb -> (
@@ -257,7 +271,7 @@ let rec collect_aliases ~modname (str : structure) =
                 | Some id -> modname ^ "." ^ Ident.name id
                 | None -> modname
               in
-              collect_aliases ~modname:n sub
+              collect_aliases_into acc ~modname:n sub
           | _ -> ())
       | _ -> ())
     str.str_items
@@ -306,8 +320,13 @@ and of_module ctx (mb : module_binding) =
       e
   | _ -> Eff_expr.empty
 
+let collect_aliases ~modname str =
+  let acc = ref [] in
+  collect_aliases_into acc ~modname str;
+  !acc
+
 let build ~modname (str : structure) : module_facts =
-  collect_module_aliases ~unit_name:modname ~modname str;
+  ignore (collect_module_aliases ~unit_name:modname ~modname str);
   let ctx =
     { modname; unit_name = modname; toplevel = Hashtbl.create 64; nodes = [];
       arities = [] }

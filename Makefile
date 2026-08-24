@@ -2,8 +2,8 @@
 OCAMLC  ?= ocamlc
 CL      ?= $(shell $(OCAMLC) -where)/compiler-libs
 MODULES := compat effect_id effect_set effect_syntax schedulers boundaries \
-           stdlib_models \
-           eff_expr builder solver scheduler_check boundary_check report \
+           stdlib_models synth \
+           eff_expr builder cache solver scheduler_check boundary_check report \
            witness driver
 CMOS    := $(addprefix lib/,$(addsuffix .cmo,$(MODULES)))
 

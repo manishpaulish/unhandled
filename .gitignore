@@ -11,3 +11,4 @@ _unhandled/
 test/**/*.cmt
 test/fuzz/gen
 lib/compat.ml
+.unhandled-cache/

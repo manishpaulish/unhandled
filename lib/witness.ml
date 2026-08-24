@@ -26,39 +26,6 @@ let string_of_outcome = function
   | Not_constructible r -> "not constructible: " ^ r
   | Build_failed r -> "build failed: " ^ r
 
-(* ------------------------------------------------- type-directed synthesis *)
-
-(* Values are deliberately non-trivial: an empty list would make
-   [List.iter f []] perform nothing and the witness would prove nothing. *)
-let rec synth (ty : Types.type_expr) : string option =
-  match Types.get_desc ty with
-  | Types.Tlink t -> synth t
-  | Types.Tsubst (t, _) -> synth t
-  | Types.Tpoly (t, _) -> synth t
-  | Types.Ttuple ts ->
-      let parts = List.map synth ts in
-      if List.exists (fun x -> x = None) parts then None
-      else Some ("(" ^ String.concat ", " (List.map Option.get parts) ^ ")")
-  | Types.Tconstr (p, args, _) -> (
-      match (Path.name p, args) with
-      | "unit", _ -> Some "()"
-      | "int", _ -> Some "1"
-      | "bool", _ -> Some "true"
-      | "float", _ -> Some "1.0"
-      | "char", _ -> Some "'w'"
-      | "string", _ -> Some "\"witness\""
-      | "list", [ a ] -> Option.map (fun v -> "[" ^ v ^ "]") (synth a)
-      | "array", [ a ] -> Option.map (fun v -> "[|" ^ v ^ "|]") (synth a)
-      | "option", [ a ] -> Option.map (fun v -> "(Some " ^ v ^ ")") (synth a)
-      | _ -> None)
-  | _ -> None
-
-let rec params ty acc =
-  match Types.get_desc ty with
-  | Types.Tarrow (_, a, b, _) -> params b (a :: acc)
-  | Types.Tlink t -> params t acc
-  | _ -> List.rev acc
-
 (* ----------------------------------------------------------------- emitter *)
 
 let source ~target ~args ~effect_name ~arity =
@@ -87,27 +54,22 @@ let generate ~(nodes : Builder.node list) ~arities (f : Report.finding) =
           with
           | None -> Error ("no summary for " ^ target)
           | Some nd -> (
-              match nd.Builder.ntype with
-              | None -> Error "callee type unavailable"
-              | Some ty -> (
-                  let ps = params ty [] in
-                  if ps = [] then Error (target ^ " is not a function")
-                  else
-                    let vs = List.map synth ps in
-                    if List.exists (fun x -> x = None) vs then
-                      Error "argument type not synthesisable"
-                    else
-                      let arity =
-                        match
-                          List.find_opt (fun (e, _) -> Effect_id.equal e eff) arities
-                        with
-                        | Some (_, a) -> a
-                        | None -> 0
-                      in
-                      Ok
-                        ( target,
-                          source ~target ~args:(List.map Option.get vs)
-                            ~effect_name:(Effect_id.to_string eff) ~arity )))))
+              match nd.Builder.nargs with
+              | None ->
+                  Error "callee is not a function, or its argument types are \
+                         not synthesisable"
+              | Some args ->
+                  let arity =
+                    match
+                      List.find_opt (fun (e, _) -> Effect_id.equal e eff) arities
+                    with
+                    | Some (_, a) -> a
+                    | None -> 0
+                  in
+                  Ok
+                    ( target,
+                      source ~target ~args ~effect_name:(Effect_id.to_string eff)
+                        ~arity ))))
 
 (* ------------------------------------------------------- compile and verify *)
 

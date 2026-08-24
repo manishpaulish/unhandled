@@ -7,12 +7,19 @@ let usage () =
     \  unhandled facts <dir>      dump raw perform/handler facts\n\
     \  unhandled summaries <dir>  print per-function effect summaries\n\
     \  unhandled witness <dir>    generate, compile and RUN a witness per finding\n\
-    \  unhandled contract <dir>   library mode: the effect contract of each function\n";
+    \  unhandled contract <dir>   library mode: the effect contract of each function\n\
+    \n\
+    \  --no-cache                 ignore and do not write the summary cache\n";
   exit 2
 
 let () =
   if Array.length Sys.argv < 3 then usage ();
   let cmd = Sys.argv.(1) and dir = Sys.argv.(2) in
+  (* --no-cache exists so the cache can be measured against, and so a
+     suspected cache bug can be ruled in or out in one run. *)
+  if Array.exists (fun a -> a = "--no-cache") Sys.argv then
+    Cache.set_enabled false;
+  Cache.set_dir (Filename.concat dir ".unhandled-cache");
   let files = Driver.find_cmts dir [] in
   if files = [] then (Printf.eprintf "no .cmt files under %s\n" dir; exit 2);
   match cmd with
