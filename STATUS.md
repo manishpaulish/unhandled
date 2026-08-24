@@ -45,21 +45,19 @@ the program's actual runtime behaviour.
 | **1000 generated programs: 0 false negatives** | measured |
 | Branch-free: 600 programs, 0 FP, 0 FN | measured |
 | Branching: 400 programs, 5.3% FP, 0 FN (join over-approximation) | measured |
-| CI on OCaml 5.3 | green |
-| CI on OCaml 5.4 | shim gaps fixed (labelled tuples, `Tpat_alias`); awaiting the next run |
+| CI on OCaml 5.3 and 5.4 | both green (run #9, commit `83e5ef7`) |
+| Full suite under 5.4.1 locally | 11 corpus + 13 scenarios + 3 cache + 4 LSP, 0 failed |
 
 ## Next, in order
 
-1. **Get the 5.4 CI job green.** Three compat gaps are fixed and 5.3 is
-   unaffected; the 5.4 job is the only outstanding verification.
-2. **Confirm riot / moonpool / miou scheduler paths** against their sources.
+1. **Confirm riot / moonpool / miou scheduler paths** against their sources.
    Eio is done and cited in `models/schedulers.conf`; the others are still
    provisional and labelled as such.
-3. **Scale the fuzzer to 10k seeds** and add recursion and multi-module
+2. **Scale the fuzzer to 10k seeds** and add recursion and multi-module
    generation.
-4. Post the tool to `discuss.ocaml.org` — the only remaining route to
+3. Post the tool to `discuss.ocaml.org` — the only remaining route to
    third-party validation, since the retroactive corpus produced none.
-5. 0-CFA behind `--cfa`, for function values that flow through data.
+4. 0-CFA behind `--cfa`, for function values that flow through data.
 
 ## Known gaps
 

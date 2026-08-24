@@ -141,6 +141,23 @@ match target () with
 This proves the effect reaches an outer boundary unhandled, which is exactly
 the claim being made, and does not depend on the printer.
 
+**The printer then changed, which settles the argument.** The same corpus run
+on 5.3 and on 5.4:
+
+```
+                       EXPECTED    ANALYSER    RUNTIME (5.3)  RUNTIME (5.4)
+nested_partial         crash B     crash B     crash B        crash ?
+wildcard_trap          crash B     crash B     crash B        crash ?
+```
+
+`crash ?` is the harness saying it saw a crash but could not read an effect
+name out of the message. On 5.4 the payload is no longer printed for these two
+programs. Nothing in the analyser or the test expectations had to change,
+because neither depends on that text: the harness compares crash-versus-clean
+always and identity only when the runtime volunteers it. Had witnesses been
+built on `grep`, every one of them would have broken on a compiler upgrade
+that changed no semantics at all.
+
 ## 8. Effect constructors can be re-exported, and the alias is what you see
 
 ```ocaml

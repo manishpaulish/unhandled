@@ -161,6 +161,27 @@ real code validates the model.** All four defects were found by contact with
 real projects. The 1000-program fuzzer found none of them, because generated
 programs call nothing the analyser cannot see.
 
+### 4.5 Two compilers
+
+The full suite passes on OCaml 5.3 and 5.4, verified in CI on both. Reading
+the typed tree makes the tool sensitive to compiler internals, and 5.4 moved
+four of the things it reads: constructor and label descriptions to a new
+`Data_types` module, an extra field on `Tpat_alias`, labels into
+`Types.Ttuple`, and `Texp_apply`'s arguments from `expression option` to
+`arg_or_omitted`. All four are isolated in a shim selected by dune on
+`%{ocaml_version}`; `docs/TYPEDTREE-NOTES.md` section 10 tabulates them
+alongside the constructs verified *unchanged*, so the audit can be checked
+rather than trusted. Development happened on 5.3 and nothing on a 5.3 machine
+could have found any of them.
+
+One result here is worth more than the portability itself. 5.4 stopped
+printing the effect payload in `Effect.Unhandled` for two corpus programs that
+printed it on 5.3. Nothing had to change: witnesses confirm a finding by
+installing a handler for the effect they are trying to prove and observing it
+arrive, never by parsing the crash message (section 7 of the same document).
+A checker built on `grep` would have produced a suite of broken proofs on a
+compiler upgrade that changed no semantics at all.
+
 ## 5. Limitations
 
 Stated in full in `docs/LIMITATIONS.md`. The ones that matter:
