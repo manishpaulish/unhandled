@@ -38,7 +38,8 @@ actual runtime behaviour.
 | `try ... with Effect.Unhandled` guard recognition | done |
 | Handler-scope transfers: Domain.spawn, Thread.create, systhreads | done |
 | Alcotest / Unix / module-alias resolution (blindness 48 -> 20 on masc) | done |
-| Retroactive corpus seeded from real crash reports | started, needs opam to reproduce |
+| Retroactive corpus: 6 commits, caught 0, build failed 0 | measured; see bench/NEGATIVE-RESULT.md |
+| Eio API requirement model (`api`/`requires`) | done |
 | Scenario tests (cross-module, contract, witness, B2) | done |
 | Differential fuzzer, runtime as oracle | done |
 | **1000 generated programs: 0 false negatives** | measured |
