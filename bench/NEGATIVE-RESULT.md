@@ -46,10 +46,22 @@ each fix — the blindness rankings contain `Unix`, `Alcotest`, `Ptime`,
 `Ppxlib`, `Selection`, `Toml_line_editor`, `Fpath`. **They never contain a
 single `Eio.` call.**
 
-masc's Eio-dependent modules do not compile in our environment. What was
+Confirmed directly:
+
+```
+$ find bench/_retro/masc/_build -name '*.cmt' | grep -ci eio
+0
+```
+
+Not one module with `eio` in its name was compiled, across the whole retro
+build tree. masc's Eio-dependent modules do not compile in our environment. What was
 analysed is the periphery: TUI selection logic, a TOML line editor,
 code-address parsing, ppx tests. The corpus never contained the buggy code, so
 no model could have caught these bugs.
+
+This makes the result **verified rather than inferred**. Three earlier
+explanations were plausible and wrong; this one is checkable in one command,
+and the check was run.
 
 ## What this is worth saying
 
