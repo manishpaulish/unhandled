@@ -131,7 +131,11 @@ and effects_of_calling ctx (e : expression) : Eff_expr.t =
   | _ -> Eff_expr.Unknown e.exp_loc
 
 and of_apply ctx e f args =
-  let arg_exprs = List.filter_map (fun (_, o) -> o) args in
+  (* Omitted arguments (partial application of a labelled function) carry no
+     expression and are dropped. 5.4 spells that [Omitted ()] where 5.3 spells
+     it [None], so the unwrapping lives in [Compat]. Note that dropping them
+     shifts the positional indices used below, on both compilers alike. *)
+  let arg_exprs = List.filter_map (fun (_, o) -> Compat.apply_arg o) args in
   let arg_effects = List.map (of_expr ctx) arg_exprs in
   match f.exp_desc with
   | Texp_ident (p, _, _) when Effect_syntax.is_perform p -> (

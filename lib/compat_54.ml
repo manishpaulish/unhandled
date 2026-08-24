@@ -25,6 +25,12 @@ let lbl_name lbl = lbl.Data_types.lbl_name
 (* Components of a tuple type, dropping labels where the compiler has them. *)
 let tuple_types ts = List.map snd ts
 
+(* One argument of a [Texp_apply]: the expression, or [None] if the call
+   omitted it. 5.3 already gives an option; 5.4 gives [arg_or_omitted]. *)
+let apply_arg = function
+  | Typedtree.Arg e -> Some e
+  | Typedtree.Omitted _ -> None
+
 (* [Tpat_alias]'s arity differs, so the pattern match itself has to live in the
    shim. Returning the aliased sub-pattern is all any caller wants from it. *)
 let alias_pat : type k. k Typedtree.pattern_desc -> Typedtree.pattern option =

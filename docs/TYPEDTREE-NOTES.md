@@ -216,26 +216,53 @@ Error: The constructor Tpat_alias expects 5 argument(s),
        but is applied here to 4 argument(s)
 ```
 
-Both come from **labelled tuples**, which landed in 5.4: `Types.Ttuple`,
-`Texp_tuple`, `Tpat_tuple` and `Ttyp_tuple` all gained a `string option` label
-per component, and `Tpat_alias` gained a fifth field. Verified against
-`typing/types.mli` and `typing/typedtree.mli` on the 5.4 branch; the rest of
-what this project reads (`Tarrow`, `Tconstr`, `Tlink`, `Tsubst`, `Tpoly`,
-`Texp_ident`, `Texp_apply`, `Texp_function`, `Tstr_eval`, `Tstr_typext`) is
-unchanged.
+The first two come from **labelled tuples**, which landed in 5.4:
+`Types.Ttuple`, `Texp_tuple`, `Tpat_tuple` and `Ttyp_tuple` all gained a
+`string option` label per component, and `Tpat_alias` gained a fifth field.
 
-Both are handled in `Compat`, including the `Tpat_alias` match itself, because
-an arity difference cannot be hidden behind an accessor. `Compat.alias_pat`
-returns the aliased sub-pattern and nothing else, which is all any caller
-wanted from that constructor.
+Fixing those exposed a third, in a constructor whose *arity* is unchanged:
 
-Two lessons worth keeping:
+```
+File "lib/builder.ml", line 134:
+Error: The value args has type (Asttypes.arg_label * apply_arg) list
+       but an expression was expected of type
+         (Asttypes.arg_label * 'a option) list
+```
+
+`Texp_apply` is `expression * (arg_label * apply_arg) list` in 5.4 against
+`expression * (arg_label * expression option) list` in 5.3, where
+`apply_arg = (expression, unit) arg_or_omitted`. Same two-argument
+constructor, same meaning ("this argument was omitted"), different type.
+
+So the full 5.4 delta for what this project reads is:
+
+| construct | 5.3 | 5.4 |
+|---|---|---|
+| constructor and label descriptions | `Types` | `Data_types` |
+| `Types.Ttuple` | `type_expr list` | `(string option * type_expr) list` |
+| `Tpat_alias` | 4 fields | 5 fields |
+| `Texp_apply` args | `expression option` | `apply_arg` |
+
+Unchanged: `Tarrow`, `Tconstr`, `Tlink`, `Tsubst`, `Tpoly`, `Texp_ident`,
+`Texp_construct`, `Texp_function`, `Texp_match`, `Texp_try`, `Texp_let`,
+`Texp_record`, `Tpat_var`, `Tpat_or`, `Tpat_construct`, `Tpat_value`,
+`Tpat_exception`, `Tstr_eval`, `Tstr_value`, `Tstr_module`, `Tstr_typext`,
+`Tmod_ident`, `Tmod_structure`, `Text_rebind`, and the `case` record.
+
+All four differences are handled in `Compat`, including the `Tpat_alias` match
+itself, because an arity difference cannot hide behind an accessor.
+
+Three lessons worth keeping:
 
 1. A version shim named after one change will not contain the next one. The
    selection mechanism (two files, `enabled_if` on `%{ocaml_version}`) was
    right; the assumption that it only had to cover `Data_types` was not.
-2. The matrix earned its keep on its first real use. Nothing reachable from a
-   5.3 developer machine could have found either of these.
+2. **Checking arities is not checking types.** `Texp_apply` was audited
+   against the 5.4 signature, found to still take two arguments, and passed —
+   while the type inside the second argument had changed underneath. Read the
+   payload, not the shape of the pattern.
+3. The matrix earned its keep on its first real use. Nothing reachable from a
+   5.3 developer machine could have found any of these.
 
 Regression fixtures: `test/corpus/alias_pattern.ml` (an effect case bound with
 `as`, which must still be recognised as handled) and `test/guard/guarded_alias.ml`.
