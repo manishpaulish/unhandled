@@ -1,0 +1,4 @@
+(library
+ (name unhandled_lib)
+ (wrapped false)
+ (libraries compiler-libs.common))
