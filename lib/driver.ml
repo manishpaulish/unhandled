@@ -189,7 +189,13 @@ let analyse files =
            { Report.f_kind =
                Report.Boundary_crossing (c.Boundary_check.b_effect,
                                          c.Boundary_check.b_why);
-             f_entry = c.Boundary_check.b_why;
+             (* The message already states the context; repeating the whole
+                clause in the entry line reads as a stutter. *)
+             f_entry =
+               (let w = c.Boundary_check.b_why in
+                match String.index_opt w ',' with
+                | Some i -> String.sub w 0 i
+                | None -> w);
              f_loc = c.Boundary_check.b_loc;
              f_path = [] })
   in

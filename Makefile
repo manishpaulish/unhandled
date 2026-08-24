@@ -28,7 +28,10 @@ lib/%.cmo: lib/%.ml
 test: unhandled
 	bash test/run_tests.sh
 
+demo: unhandled
+	bash demo.sh
+
 clean:
 	rm -f lib/*.cm* bin/*.cm* lib/compat.ml unhandled test/corpus/*.cm* test/corpus/*.exe
 
-.PHONY: all test clean
+.PHONY: all test demo clean

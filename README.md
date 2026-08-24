@@ -46,6 +46,17 @@ Week 1 of SegFault 2026. Working today:
 - effect-polymorphic summaries for higher-order stdlib combinators
 - blame paths from module entry down to the offending `perform`
 
+## See it work
+
+```
+dune build && make demo
+```
+
+Six sections, each executed rather than asserted: the ten-line program that
+compiles clean and crashes, the finding, a witness that is generated and run,
+a finaliser whose effect no handler can catch, an Eio call with no runtime, and
+the two measured numbers. Nothing in it is a screenshot.
+
 ## Requirements
 
 OCaml **5.3 or newer**. `Texp_match` and `Texp_try` only gained their
