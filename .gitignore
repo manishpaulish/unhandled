@@ -7,3 +7,5 @@ _build/
 *.byte
 /unhandled
 _unhandled/
+_unhandled/
+test/**/*.cmt

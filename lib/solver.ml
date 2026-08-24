@@ -44,7 +44,7 @@ let solve (nodes : Builder.node list) : env =
 
 (* ------------------------------------------------------------------- blame *)
 
-type step = { st_what : string; st_loc : Location.t }
+type step = { st_what : string; st_loc : Location.t; st_callee : string option }
 
 let node_table nodes =
   List.fold_left
@@ -63,17 +63,17 @@ let blame_path env nodes eff root =
   let rec go visiting e =
     match e with
     | Eff_expr.Perform (id, loc) when Effect_id.equal id eff ->
-        Some [ { st_what = "performs " ^ Effect_id.short eff; st_loc = loc } ]
+        Some [ { st_what = "performs " ^ Effect_id.short eff; st_loc = loc; st_callee = None } ]
     | Eff_expr.Perform _ | Eff_expr.Const _ | Eff_expr.Unknown _ -> None
     | Eff_expr.Call (name, loc) ->
         if SSet.mem name visiting then None
         else if not (Effect_set.mem eff (lookup env name)) then None
         else (
           match SMap.find_opt name tbl with
-          | None -> Some [ { st_what = "calls " ^ name ^ " (no source available)"; st_loc = loc } ]
+          | None -> Some [ { st_what = "calls " ^ name ^ " (no source available)"; st_loc = loc; st_callee = None } ]
           | Some nd ->
               (match go (SSet.add name visiting) nd.Builder.body with
-               | Some rest -> Some ({ st_what = "calls " ^ name; st_loc = loc } :: rest)
+               | Some rest -> Some ({ st_what = "calls " ^ name; st_loc = loc; st_callee = Some name } :: rest)
                | None -> None))
     | Eff_expr.Join l ->
         List.fold_left (fun acc x -> match acc with Some _ -> acc | None -> go visiting x) None l

@@ -2,18 +2,25 @@
 
 open Typedtree
 
-type node = { name : string; loc : Location.t; body : Eff_expr.t }
+type node = {
+  name : string;
+  loc : Location.t;
+  body : Eff_expr.t;
+  ntype : Types.type_expr option;  (* type of the bound function, for witnesses *)
+}
 
 type module_facts = {
   mf_modname : string;
   mf_nodes : node list;
   mf_init : Eff_expr.t;  (* effects performed when the module is initialised *)
+  mf_arities : (Effect_id.t * int) list;  (* effect constructor arities *)
 }
 
 type ctx = {
   modname : string;
   toplevel : (string, string) Hashtbl.t;  (* Ident.unique_name -> M.name *)
   mutable nodes : node list;
+  mutable arities : (Effect_id.t * int) list;
 }
 
 let qualify ctx (p : Path.t) =
@@ -77,7 +84,9 @@ and of_apply ctx e f args =
       match arg_exprs with
       | [ a ] -> (
           match Effect_syntax.effect_of_expr ~modname:ctx.modname a with
-          | Some id -> Eff_expr.Join (Eff_expr.Perform (id, e.exp_loc) :: arg_effects)
+          | Some (id, arity) ->
+              ctx.arities <- (id, arity) :: ctx.arities;
+              Eff_expr.Join (Eff_expr.Perform (id, e.exp_loc) :: arg_effects)
           (* perform applied to a non-literal effect: identity unknown. *)
           | None -> Eff_expr.Unknown e.exp_loc)
       | _ -> Eff_expr.Unknown e.exp_loc)
@@ -132,7 +141,9 @@ and bind_value ctx (vb : value_binding) : Eff_expr.t =
         | None -> ctx.modname ^ "." ^ u
       in
       let body = effects_of_calling ctx vb.vb_expr in
-      ctx.nodes <- { name = qname; loc = vb.vb_loc; body } :: ctx.nodes;
+      ctx.nodes <-
+        { name = qname; loc = vb.vb_loc; body; ntype = Some vb.vb_expr.exp_type }
+        :: ctx.nodes;
       Eff_expr.empty
   | _ -> of_expr ctx vb.vb_expr
 
@@ -176,10 +187,12 @@ and of_module ctx (mb : module_binding) =
       let sub = { ctx with modname = sub_name } in
       let e = of_structure sub str in
       ctx.nodes <- sub.nodes @ ctx.nodes;
+      ctx.arities <- sub.arities @ ctx.arities;
       e
   | _ -> Eff_expr.empty
 
 let build ~modname (str : structure) : module_facts =
-  let ctx = { modname; toplevel = Hashtbl.create 64; nodes = [] } in
+  let ctx = { modname; toplevel = Hashtbl.create 64; nodes = []; arities = [] } in
   let init = of_structure ctx str in
-  { mf_modname = modname; mf_nodes = ctx.nodes; mf_init = init }
+  { mf_modname = modname; mf_nodes = ctx.nodes; mf_init = init;
+    mf_arities = ctx.arities }

@@ -36,7 +36,7 @@ let effect_of_expr ~modname (e : expression) =
   match e.exp_desc with
   | Texp_construct (_, cd, _) -> (
       match cd.cstr_tag with
-      | Types.Cstr_extension (p, _) -> Some (Effect_id.of_path ~modname p)
+      | Types.Cstr_extension (p, _) -> Some (Effect_id.of_path ~modname p, cd.cstr_arity)
       | _ -> None)
   | _ -> None
 

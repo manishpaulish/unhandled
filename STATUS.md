@@ -22,18 +22,19 @@ actual runtime behaviour.
 | Blame paths from entry to `perform` | done |
 | CLI `check` / `summaries` | done |
 | Three-way differential test harness | done |
+| Cross-module whole-program analysis | done |
+| Witness generation (synthesise, compile, run, confirm) | done |
+| Type-directed argument synthesis | done |
 
 ## Next, in order
 
-1. **Witness generator** (the differentiator). Use the confirmation handler
-   from `docs/TYPEDTREE-NOTES.md` §7 rather than parsing crash messages.
-2. **Library vs executable mode** — required before any real-world sweep, or
+1. **Library vs executable mode** — required before any real-world sweep, or
    library code will produce false positives at scale.
-3. **Scheduler model table** (`models/schedulers.json`) → unlocks B2
+2. **Scheduler model table** (`models/schedulers.json`) → unlocks B2
    scheduler-mismatch findings.
-4. **QCheck generator** for the differential loop at 10k programs.
-5. **Sweep harness** over opam repos; retroactive crash corpus.
-6. 0-CFA behind `--cfa`, then LSP.
+3. **QCheck generator** for the differential loop at 10k programs.
+4. **Sweep harness** over opam repos; retroactive crash corpus.
+5. 0-CFA behind `--cfa`, then LSP.
 
 ## Known gaps
 

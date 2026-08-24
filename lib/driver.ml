@@ -12,7 +12,24 @@ let rec find_cmts dir acc =
         acc entries
   | exception Sys_error _ -> acc
 
-type unit_facts = { uf_file : string; uf_facts : Builder.module_facts }
+type unit_facts = {
+  uf_file : string;
+  uf_source : string option;
+  uf_facts : Builder.module_facts;
+}
+
+(* cmt_sourcefile is usually relative to the build directory; try the obvious
+   places and give up honestly rather than guessing. *)
+let resolve_source cmtfile (cmt : Cmt_format.cmt_infos) =
+  match cmt.Cmt_format.cmt_sourcefile with
+  | None -> None
+  | Some s ->
+      let candidates =
+        [ s;
+          Filename.concat (Filename.dirname cmtfile) (Filename.basename s);
+          Filename.concat cmt.Cmt_format.cmt_builddir s ]
+      in
+      List.find_opt Sys.file_exists candidates
 
 let load file =
   match Cmt_format.read_cmt file with
@@ -20,6 +37,7 @@ let load file =
       match cmt.Cmt_format.cmt_annots with
       | Cmt_format.Implementation str ->
           Some { uf_file = file;
+                 uf_source = resolve_source file cmt;
                  uf_facts = Builder.build ~modname:cmt.Cmt_format.cmt_modname str }
       | _ -> None)
   | exception _ -> None

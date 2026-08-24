@@ -2,7 +2,7 @@
 OCAMLC  ?= ocamlc
 CL      ?= $(shell $(OCAMLC) -where)/compiler-libs
 MODULES := effect_id effect_set effect_syntax stdlib_models eff_expr \
-           builder solver report driver
+           builder solver report witness driver
 CMOS    := $(addprefix lib/,$(addsuffix .cmo,$(MODULES)))
 
 all: unhandled
