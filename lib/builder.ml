@@ -18,10 +18,46 @@ type module_facts = {
 
 type ctx = {
   modname : string;
+  unit_name : string;  (* the compilation unit, for per-file alias lookup *)
   toplevel : (string, string) Hashtbl.t;  (* Ident.unique_name -> M.name *)
   mutable nodes : node list;
   mutable arities : (Effect_id.t * int) list;
 }
+
+(* `module D = Foo` makes `D.record` appear as the path "D.record", which
+   matches no summary, so the call resolves to nothing and the caller degrades
+   to unknown. The second sweep showed this clearly: D.record_threshold, A.v,
+   Detail.view_for and friends were all aliases into modules we had analysed.
+
+   Aliases are recorded per compilation unit, because two files may each bind
+   a different module to the name `D`. *)
+let module_aliases : (string, string) Hashtbl.t = Hashtbl.create 64
+
+let register_module_alias ~unit_name ~alias ~target =
+  Hashtbl.replace module_aliases (unit_name ^ "|" ^ alias) target
+
+let resolve_alias ~unit_name name =
+  match String.index_opt name '.' with
+  | None -> name
+  | Some i ->
+      let head = String.sub name 0 i in
+      let rest = String.sub name i (String.length name - i) in
+      (match Hashtbl.find_opt module_aliases (unit_name ^ "|" ^ head) with
+       | Some target -> target ^ rest
+       | None -> name)
+
+let rec collect_module_aliases ~unit_name ~modname (str : structure) =
+  List.iter
+    (fun item ->
+      match item.str_desc with
+      | Tstr_module { mb_id = Some id; mb_expr = { mod_desc = Tmod_ident (p, _); _ }; _ } ->
+          register_module_alias ~unit_name ~alias:(Ident.name id)
+            ~target:(Path.name p)
+      | Tstr_module { mb_id = Some id; mb_expr = { mod_desc = Tmod_structure sub; _ }; _ } ->
+          collect_module_aliases ~unit_name
+            ~modname:(modname ^ "." ^ Ident.name id) sub
+      | _ -> ())
+    str.str_items
 
 let qualify ctx (p : Path.t) =
   match p with
@@ -30,7 +66,7 @@ let qualify ctx (p : Path.t) =
       (match Hashtbl.find_opt ctx.toplevel u with
        | Some q -> q
        | None -> ctx.modname ^ "." ^ u)
-  | _ -> Path.name p
+  | _ -> resolve_alias ~unit_name:ctx.unit_name (Path.name p)
 
 (* Immediate sub-expressions. [default_iterator.expr] walks one level using the
    iterator we hand it; our override collects without recursing, so we get the
@@ -264,7 +300,11 @@ and of_module ctx (mb : module_binding) =
   | _ -> Eff_expr.empty
 
 let build ~modname (str : structure) : module_facts =
-  let ctx = { modname; toplevel = Hashtbl.create 64; nodes = []; arities = [] } in
+  collect_module_aliases ~unit_name:modname ~modname str;
+  let ctx =
+    { modname; unit_name = modname; toplevel = Hashtbl.create 64; nodes = [];
+      arities = [] }
+  in
   let init = of_structure ctx str in
   { mf_modname = modname; mf_nodes = ctx.nodes; mf_init = init;
     mf_arities = ctx.arities }

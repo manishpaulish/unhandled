@@ -70,7 +70,12 @@ let may_run_user_code = [ "Stdlib.Effect."; "Stdlib.Lazy."; "Stdlib.Domain." ]
    and explicit: this is an assumption about someone else's library, and a
    wrong entry here hides bugs rather than merely adding noise. *)
 let pure_library_prefixes =
-  [ "Yojson."; "Re."; "Fmt."; "Astring."; "Uutf."; "Sexplib0." ]
+  [ "Yojson."; "Re."; "Fmt."; "Astring."; "Uutf."; "Sexplib0.";
+    (* Unix dominated the blindness list on the second sweep (rmdir, mkdir,
+       waitpid, gettimeofday, sleepf, kill, environment, close, openfile).
+       These are syscall wrappers: they do not call back into caller-supplied
+       code, so they cannot perform a caller's effect. *)
+    "Unix."; "Str."; "Ptime." ]
 
 let starts_with pre s =
   String.length s >= String.length pre && String.sub s 0 (String.length pre) = pre

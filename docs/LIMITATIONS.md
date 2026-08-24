@@ -14,6 +14,19 @@ that reports them.
   called later is not resolved until 0-CFA lands (tier 3).
 - **`Obj.magic`, C stubs, first-class modules.** Out of scope.
 
+## Modelling assumptions about third-party libraries
+
+`Unix`, `Str`, `Ptime`, `Yojson`, `Re`, `Fmt`, `Astring`, `Uutf` and `Sexplib0`
+are treated as performing no user-defined effects: they transform data or wrap
+syscalls and do not call back into caller-supplied code. `Alcotest.test_case` is
+modelled as a higher-order combinator, since it takes the test body.
+
+These came from measurement rather than guesswork. On the sweep, Alcotest
+accounted for about 79 of 107 unknown-effect warnings and `Unix` for most of
+the remainder. A wrong entry here hides bugs rather than merely adding noise,
+so the list is deliberately short and every addition is justified by the
+blindness ranking in `bench/`.
+
 ## Deliberate suppressions
 
 - `try ... with Effect.Unhandled _` is treated as discharging the body's
