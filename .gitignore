@@ -12,3 +12,8 @@ test/**/*.cmt
 test/fuzz/gen
 lib/compat.ml
 .unhandled-cache/
+docs/typedtree-notes/probe
+docs/typedtree-notes/probe_uid
+bench/_work/
+bench/_retro/
+bench/results/
