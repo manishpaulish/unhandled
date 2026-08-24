@@ -41,15 +41,31 @@ run_one () {
     # install deps" and "code does not compile" are different problems and
     # lumping them together makes the attrition column useless.
     echo "=== opam install --deps-only ===" >> "$log"
-    if ! ( cd "$dir/$sub" && opam install . --deps-only --yes --with-test >>"$log" 2>&1 ); then
+    # Monorepos (eio ships eio, eio_linux, eio_main, eio_posix) declare version
+    # constraints on each other. Resolving them all together fails against the
+    # working tree: eio_linux wants "eio < 1.5" while the checkout IS 1.5. Tell
+    # opam to ignore constraints on the repo's own packages.
+    local own
+    own=$( cd "$dir/$sub" && ls *.opam 2>/dev/null | sed 's/\.opam$//' | paste -sd, - )
+    local ignore=""
+    [ -n "$own" ] && ignore="--ignore-constraints-on=$own"
+    # --assume-depexts skips the system-package check rather than invoking brew
+    # or apt. A package that genuinely needs a system library will fail at
+    # build time and be recorded as attrition, which is preferable to this
+    # script installing things on someone's machine.
+    local opam_flags="--deps-only --yes --assume-depexts $ignore"
+    if ! ( cd "$dir/$sub" && opam install . $opam_flags --with-test >>"$log" 2>&1 ); then
       echo "(deps-only with tests failed; retrying without --with-test)" >> "$log"
-      ( cd "$dir/$sub" && opam install . --deps-only --yes >>"$log" 2>&1 ) || status=deps_failed
+      ( cd "$dir/$sub" && opam install . $opam_flags >>"$log" 2>&1 ) || status=deps_failed
     fi
   fi
 
   if [ "$status" = ok ] || [ "$status" = deps_failed ]; then
     echo "=== dune build @check ===" >> "$log"
-    if ( cd "$dir/$sub" && timeout 900 opam exec -- dune build @check -j "$JOBS" >>"$log" 2>&1 ); then
+    # --root . is essential. Without it dune searches upward, finds THIS
+    # project's dune-project, and tries to build the clone as part of us:
+    #   Error: Don't know about directory bench/_work/eio
+    if ( cd "$dir/$sub" && timeout 900 opam exec -- dune build --root . @check -j "$JOBS" >>"$log" 2>&1 ); then
       status=ok
     else
       # A partial build is still worth analysing: many repos fail only in
