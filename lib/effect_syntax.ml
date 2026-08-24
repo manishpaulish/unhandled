@@ -53,9 +53,13 @@ let rec effect_of_pattern :
   | Tpat_any | Tpat_var _ -> All
   | Tpat_or (a, b, _) ->
       handled_join (effect_of_pattern ~modname a) (effect_of_pattern ~modname b)
-  | Tpat_alias (p, _, _, _) -> effect_of_pattern ~modname p
   | Tpat_value p -> effect_of_pattern ~modname (p :> value general_pattern)
-  | _ -> handled_empty
+  (* [Tpat_alias] is matched in [Compat] because its arity differs between 5.3
+     and 5.4. Everything else falls through to "handles nothing". *)
+  | d -> (
+      match Compat.alias_pat d with
+      | Some inner -> effect_of_pattern ~modname inner
+      | None -> handled_empty)
 
 (* [Texp_match (e, computation_cases, effect_cases, _)] and
    [Texp_try (e, exn_cases, effect_cases)]: in 5.3 the effect cases live in
@@ -85,10 +89,12 @@ let rec catches_unhandled : type k. k general_pattern -> bool =
       | Some path -> List.mem (Path.name path) unhandled_exn_names
       | None -> false)
   | Tpat_or (a, b, _) -> catches_unhandled a || catches_unhandled b
-  | Tpat_alias (p, _, _, _) -> catches_unhandled p
   | Tpat_exception p -> catches_unhandled p
   | Tpat_any | Tpat_var _ -> false
-  | _ -> false
+  | d -> (
+      match Compat.alias_pat d with
+      | Some inner -> catches_unhandled inner
+      | None -> false)
 
 let guards_unhandled cases =
   List.exists (fun c -> catches_unhandled c.c_lhs) cases
@@ -158,7 +164,7 @@ let handled_of_handler_record ~modname (e : expression) =
   | Texp_record { fields; _ } ->
       Array.fold_left
         (fun acc (lbl, def) ->
-          if String.equal lbl.Types.lbl_name "effc" then
+          if String.equal (Compat.lbl_name lbl) "effc" then
             match def with
             | Overridden (_, ex) -> handled_join acc (handled_of_effc ~modname ex)
             | Kept _ -> acc

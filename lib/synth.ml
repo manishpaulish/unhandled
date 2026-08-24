@@ -15,7 +15,8 @@ let rec value_of (ty : Types.type_expr) : string option =
   | Types.Tsubst (t, _) -> value_of t
   | Types.Tpoly (t, _) -> value_of t
   | Types.Ttuple ts ->
-      let parts = List.map value_of ts in
+      (* 5.4 tuples carry an optional label per component; [Compat] drops it. *)
+      let parts = List.map value_of (Compat.tuple_types ts) in
       if List.exists (fun x -> x = None) parts then None
       else Some ("(" ^ String.concat ", " (List.map Option.get parts) ^ ")")
   | Types.Tconstr (p, args, _) -> (

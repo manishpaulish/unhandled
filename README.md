@@ -62,8 +62,11 @@ the two measured numbers. Nothing in it is a screenshot.
 OCaml **5.3 or newer**. `Texp_match` and `Texp_try` only gained their
 effect-case lists in 5.3, so earlier compilers cannot represent the construct
 this tool analyses; `match ... with effect` did not exist before 5.3 either.
-5.4 is supported through a small compatibility shim, since it moved
-constructor descriptions from `Types` to `Data_types`.
+5.4 is supported through a small compatibility shim (`lib/compat_5*.ml`,
+selected by dune on `%{ocaml_version}`), which covers three changes: the move
+of constructor and label descriptions from `Types` to `Data_types`, the extra
+field on `Tpat_alias`, and the labels that labelled tuples added to
+`Types.Ttuple`. See `docs/TYPEDTREE-NOTES.md` section 10.
 
 ## Build
 

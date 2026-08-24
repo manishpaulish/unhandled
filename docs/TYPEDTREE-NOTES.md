@@ -184,15 +184,59 @@ Verified against the compilers' own `typing/typedtree.mli`:
 |---|---|---|---|
 | `Texp_match` | `expr * computation case list * partial` | `expr * computation case list * value case list * partial` | same as 5.3 |
 | `Texp_try` | `expr * value case list` | `expr * value case list * value case list` | same as 5.3 |
-| constructor descriptions | `Types` | `Types` | **`Data_types`** |
+| constructor and label descriptions | `Types` | `Types` | **`Data_types`** |
+| `Tpat_alias` | 4 fields | 4 fields | **5 fields** |
+| `Types.Ttuple` | `type_expr list` | `type_expr list` | **`(string option * type_expr) list`** |
 
 **5.3 is the floor.** The effect-case lists only appear in 5.3, so on 5.1/5.2
 the typed tree cannot express the thing this tool analyses. That is not a
 portability gap to paper over: `match ... with effect` did not exist before
 5.3 either.
 
-**5.4 moved `constructor_description` and `Cstr_extension` from `Types` to a
-new `Data_types` module, with no alias left behind.** `lib/compat_53.ml` and
-`lib/compat_54.ml` isolate that; dune picks one on `%{ocaml_version}`. Call
-sites must not annotate the argument type, because the type differs between
-the two shims and inference is what makes the same code compile on both.
+**5.4 moved `constructor_description`, `label_description` and
+`Cstr_extension` from `Types` to a new `Data_types` module, with no alias left
+behind.** `lib/compat_53.ml` and `lib/compat_54.ml` isolate that; dune picks
+one on `%{ocaml_version}`. Call sites must not annotate the argument type,
+because the type differs between the two shims and inference is what makes the
+same code compile on both.
+
+## 10. The `Data_types` move was not the only 5.4 break
+
+Development happened on 5.3, where everything compiled. The CI matrix builds
+5.3 and 5.4, and the 5.4 job failed on two further changes that had nothing to
+do with `Data_types`:
+
+```
+File "lib/synth.ml", line 18:
+Error: The value ts has type (string option * Types.type_expr) list
+       but an expression was expected of type Types.type_expr list
+
+File "lib/effect_syntax.ml", line 56:
+Error: The constructor Tpat_alias expects 5 argument(s),
+       but is applied here to 4 argument(s)
+```
+
+Both come from **labelled tuples**, which landed in 5.4: `Types.Ttuple`,
+`Texp_tuple`, `Tpat_tuple` and `Ttyp_tuple` all gained a `string option` label
+per component, and `Tpat_alias` gained a fifth field. Verified against
+`typing/types.mli` and `typing/typedtree.mli` on the 5.4 branch; the rest of
+what this project reads (`Tarrow`, `Tconstr`, `Tlink`, `Tsubst`, `Tpoly`,
+`Texp_ident`, `Texp_apply`, `Texp_function`, `Tstr_eval`, `Tstr_typext`) is
+unchanged.
+
+Both are handled in `Compat`, including the `Tpat_alias` match itself, because
+an arity difference cannot be hidden behind an accessor. `Compat.alias_pat`
+returns the aliased sub-pattern and nothing else, which is all any caller
+wanted from that constructor.
+
+Two lessons worth keeping:
+
+1. A version shim named after one change will not contain the next one. The
+   selection mechanism (two files, `enabled_if` on `%{ocaml_version}`) was
+   right; the assumption that it only had to cover `Data_types` was not.
+2. The matrix earned its keep on its first real use. Nothing reachable from a
+   5.3 developer machine could have found either of these.
+
+Regression fixtures: `test/corpus/alias_pattern.ml` (an effect case bound with
+`as`, which must still be recognised as handled) and `test/guard/guarded_alias.ml`.
+Both fail loudly if `Compat.alias_pat` starts returning `None`.
