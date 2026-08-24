@@ -1,4 +1,5 @@
-(* Per-module cache, keyed by the digest of the .cmt file.
+(* Per-module cache, keyed by the digest of the .cmt file and of the analyser
+   binary that produced the entry.
 
    The expensive part of a run is reading typed trees and building summaries;
    the fixpoint itself is cheap. Caching the built facts therefore turns a
@@ -19,7 +20,35 @@ type entry = {
 
 (* Bump when anything in the cached types changes shape. A stale entry read
    back at the wrong type is a segfault, not an error. *)
-let version = "unhandled-cache-v2"
+let format_version = "unhandled-cache-v3"
+
+(* The key has to identify the analyser, not just its input.
+
+   Keying on the .cmt digest alone is unsound across builds: change the
+   analyser, leave the sources untouched, and every module is a cache hit
+   carrying the previous build's answer. That is a false negative manufactured
+   by the cache rather than by the analysis, and CI cannot see it because CI
+   always starts cold. Found by sabotaging [Compat.alias_pat] and watching the
+   false positive it should have caused fail to appear on a warm run.
+
+   [Sys.argv.(0)] is preferred over [Sys.executable_name] because for a
+   bytecode build the latter is the path of ocamlrun, which does not change
+   when this program does. If neither names a readable file the build cannot
+   identify itself, and the cache is refused rather than trusted. *)
+let self_id =
+  lazy
+    (let digest p =
+       match Digest.to_hex (Digest.file p) with
+       | d -> Some d
+       | exception _ -> None
+     in
+     let argv0 = if Array.length Sys.argv > 0 then Sys.argv.(0) else "" in
+     match digest argv0 with Some d -> Some d | None -> digest Sys.executable_name)
+
+let version () =
+  match Lazy.force self_id with
+  | Some d -> Some (format_version ^ "-" ^ d)
+  | None -> None
 
 let dir = ref ".unhandled-cache"
 let set_dir d = dir := d
@@ -33,8 +62,9 @@ let key_of_file file =
 let path_of key = Filename.concat !dir (key ^ ".bin")
 
 let load file =
-  if not !enabled then None
-  else
+  match (if !enabled then version () else None) with
+  | None -> None
+  | Some version -> (
   match key_of_file file with
   | None -> None
   | Some key -> (
@@ -56,11 +86,12 @@ let load file =
               (fun (k, target) -> Builder.register_module_alias_raw k target)
               e.e_module_aliases;
             Some e
-        with _ -> None)
+        with _ -> None))
 
 let store file (e : entry) =
-  if not !enabled then ()
-  else
+  match (if !enabled then version () else None) with
+  | None -> ()
+  | Some version -> (
   match key_of_file file with
   | None -> ()
   | Some key -> (
@@ -71,4 +102,4 @@ let store file (e : entry) =
         Marshal.to_channel oc version [];
         Marshal.to_channel oc e [ Marshal.No_sharing ];
         close_out oc
-      with _ -> ())
+      with _ -> ()))

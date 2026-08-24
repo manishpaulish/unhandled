@@ -110,9 +110,24 @@ Picos_std_structured__Control.block
 
 ### 4.3 Incremental checks
 
-Summaries are cached per module, keyed by `.cmt` digest. 200 modules: cold
-0.18s, warm 0.05s. `bench/perf.sh` compares cached against `--no-cache` output
-byte for byte before reporting a timing.
+Summaries are cached per module, keyed by `.cmt` digest **and by the digest of
+the analyser binary**. 200 modules: cold 0.18s, warm 0.05s, plus ~10ms per run
+to hash the checker itself. `bench/perf.sh` compares cached against
+`--no-cache` output byte for byte before reporting a timing, and
+`test/run_tests.sh` asserts that cold, warm and `--no-cache` runs agree.
+
+The second half of the key is not defensive dressing. Keyed on the `.cmt`
+alone, changing the analyser and leaving the sources untouched makes every
+module a cache hit carrying the *previous* build's answer: a false negative
+manufactured by the cache rather than by the analysis, and one that CI cannot
+see because CI always starts cold. We found it by sabotage — breaking
+`Compat.alias_pat` and watching the false positive it should have caused fail
+to appear on a warm run. When the checker cannot identify its own build it
+refuses the cache instead of trusting a key that does not distinguish builds.
+
+The same run exposed a second, quieter problem: the scenario tests did not
+clear `.unhandled-cache` between runs, so locally they could pass against a
+broken analyser. They now start cold.
 
 ### 4.4 A negative result, and what it cost
 

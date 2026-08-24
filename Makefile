@@ -25,8 +25,10 @@ unhandled-lsp: $(CMOS) bin/unhandled_lsp.ml
 
 lib/effect_id.cmo: lib/compat.cmo
 
+# -bin-annot so the fallback build can also self-host: `unhandled check lib`
+# needs our own .cmt files, which dune produces by default and this did not.
 lib/%.cmo: lib/%.ml
-	$(OCAMLC) -I $(CL) -I lib -c $<
+	$(OCAMLC) -I $(CL) -I lib -bin-annot -c $<
 
 test: unhandled
 	bash test/run_tests.sh

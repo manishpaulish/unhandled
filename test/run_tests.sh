@@ -79,6 +79,9 @@ scenario () { # name dir cmd expected-substring
   ( cd "$ROOT/$dir" && for _ in 1 2 3; do
       for f in *.ml; do $OCAMLC -bin-annot -c "$f" >/dev/null 2>&1; done
     done )
+  # Start cold. A scenario that reads the previous run's cache is testing the
+  # cache, not the analyser, and would keep passing after the analyser broke.
+  rm -rf "$ROOT/$dir/.unhandled-cache"
   local got
   got="$(UNHANDLED_OCAMLC="$OCAMLC" UNHANDLED_RUNNER="$RUN" $RUN "$UNHANDLED" "$cmd" "$ROOT/$dir" 2>&1)"
   if echo "$got" | grep -q -- "$want"; then
@@ -86,7 +89,7 @@ scenario () { # name dir cmd expected-substring
   else
     printf "%-40s FAIL (wanted: %s)\n" "$name" "$want"; sfail=$((sfail+1))
   fi
-  ( cd "$ROOT/$dir" && rm -f *.cm* )
+  ( cd "$ROOT/$dir" && rm -f *.cm* && rm -rf .unhandled-cache )
 }
 scenario "cross-module escape"      test/xmodule    check    "Svc.Ping escapes unhandled"
 scenario "library contract"         test/xmodule    contract "may perform {Svc.Ping}"
@@ -103,6 +106,36 @@ scenario "Eio API without a runtime"  test/eio_api   check    "Suspend escapes u
 scenario "Eio API under Eio_main.run" test/eio_ok    check    "0 error(s)"
 printf -- "------------------------------------------------------------------------------\n"
 [ $sfail -eq 0 ] && echo "scenarios: all passed" || echo "scenarios: $sfail failed"
+
+# ------------------------------------------------------------------- cache
+# The incremental cache is the one component whose failures are invisible to
+# every other test here, because a wrong answer served from cache looks exactly
+# like a right one and CI always starts cold. So compare the three runs that
+# must agree: cold, warm, and cache disabled.
+echo
+echo "cache"
+printf -- "------------------------------------------------------------------------------\n"
+cdir="$ROOT/test/xmodule"
+( cd "$cdir" && for _ in 1 2 3; do
+    for f in *.ml; do $OCAMLC -bin-annot -c "$f" >/dev/null 2>&1; done
+  done )
+rm -rf "$cdir/.unhandled-cache"
+cold="$($RUN "$UNHANDLED" check "$cdir" 2>&1)"
+warm="$($RUN "$UNHANDLED" check "$cdir" 2>&1)"
+nocache="$($RUN "$UNHANDLED" check "$cdir" --no-cache 2>&1)"
+cache_check () { # name actual
+  if [ "$cold" = "$2" ]; then printf "%-40s PASS\n" "$1"
+  else printf "%-40s FAIL\n" "$1"; sfail=$((sfail+1)); fi
+}
+if [ -d "$cdir/.unhandled-cache" ]; then
+  printf "%-40s PASS\n" "cold run writes a cache"
+else
+  printf "%-40s FAIL\n" "cold run writes a cache"; sfail=$((sfail+1))
+fi
+cache_check "warm run agrees with cold"     "$warm"
+cache_check "--no-cache agrees with cached" "$nocache"
+( cd "$cdir" && rm -f *.cm* && rm -rf .unhandled-cache )
+printf -- "------------------------------------------------------------------------------\n"
 
 # The language server is exercised over the real protocol: a server that
 # compiles but never answers is worse than no server.
