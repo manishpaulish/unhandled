@@ -1,58 +1,59 @@
-(* The abstract domain: a finite set of known effects, or Top.
+(* The abstract domain: the effects we could identify, plus a flag for whether
+   anything unidentifiable is also in play.
 
-   [Top] means "may perform effects we could not determine" and arises from
-   unresolved higher-order calls, calls to functions we have no summary for,
-   and [perform] applied to a non-literal effect value. Top is deliberately
-   *not* silently dropped: it is reported as an unknown, never as "clean". *)
+   This used to be [Known of set | Top], where Top discarded everything. On
+   real code that was actively harmful: a module initialiser that touches one
+   unresolved external call collapsed to Top, and every known escaping effect
+   in that module became invisible. The first ecosystem sweep reported zero
+   escapes and 61 unknown warnings across 174 modules, which is exactly the
+   shape that failure produces.
 
-type t = Known of Effect_id.Set.t | Top
+   Tracking both means an unresolved call costs precision only about the part
+   we could not see. *)
 
-let empty = Known Effect_id.Set.empty
-let top = Top
-let is_empty = function Known s -> Effect_id.Set.is_empty s | Top -> false
-let singleton e = Known (Effect_id.Set.singleton e)
+type t = { known : Effect_id.Set.t; unknown : bool }
 
-let of_list l = Known (Effect_id.Set.of_list l)
+let empty = { known = Effect_id.Set.empty; unknown = false }
+let top = { known = Effect_id.Set.empty; unknown = true }
+let singleton e = { known = Effect_id.Set.singleton e; unknown = false }
+let of_list l = { known = Effect_id.Set.of_list l; unknown = false }
+
+let is_empty t = Effect_id.Set.is_empty t.known && not t.unknown
+let has_unknown t = t.unknown
+let known_elements t = Effect_id.Set.elements t.known
 
 let join a b =
-  match (a, b) with
-  | Top, _ | _, Top -> Top
-  | Known x, Known y -> Known (Effect_id.Set.union x y)
+  { known = Effect_id.Set.union a.known b.known;
+    unknown = a.unknown || b.unknown }
 
 let join_list = List.fold_left join empty
 
-(* Handler subtraction. [Top \ h] stays [Top]: an effect we could not identify
-   might not be one of the handled ones, so removing them proves nothing. *)
-let subtract t handled =
-  match t with
-  | Top -> Top
-  | Known s -> Known (Effect_id.Set.diff s handled)
+(* Handler subtraction removes what we can name. The unknown component
+   survives: an effect we could not identify might not be one of the handled
+   ones, so discharging them proves nothing about it. *)
+let subtract t handled = { t with known = Effect_id.Set.diff t.known handled }
+
+let remove_where pred t =
+  { t with known = Effect_id.Set.filter (fun e -> not (pred e)) t.known }
+
+let select pred t = Effect_id.Set.elements (Effect_id.Set.filter pred t.known)
+
+(* Membership is over the identified part only. Blame reconstruction uses this
+   to decide whether to walk into a callee, and "might be inside the unknown
+   part" is not evidence of a path. *)
+let mem e t = Effect_id.Set.mem e t.known
 
 let leq a b =
-  match (a, b) with
-  | _, Top -> true
-  | Top, Known _ -> false
-  | Known x, Known y -> Effect_id.Set.subset x y
+  Effect_id.Set.subset a.known b.known && ((not a.unknown) || b.unknown)
 
 let equal a b = leq a b && leq b a
 
-let remove_where pred = function
-  | Top -> Top
-  | Known s -> Known (Effect_id.Set.filter (fun e -> not (pred e)) s)
-
-(* Top cannot be enumerated, so selection returns only what we can name. *)
-let select pred = function
-  | Top -> []
-  | Known s -> Effect_id.Set.elements (Effect_id.Set.filter pred s)
-
-let mem e = function Known s -> Effect_id.Set.mem e s | Top -> true
-
-let elements = function Known s -> Effect_id.Set.elements s | Top -> []
-
-let to_string = function
-  | Top -> "<unknown>"
-  | Known s ->
-      if Effect_id.Set.is_empty s then "{}"
-      else
-        "{" ^ String.concat ", "
-                (List.map Effect_id.to_string (Effect_id.Set.elements s)) ^ "}"
+let to_string t =
+  let names =
+    List.map Effect_id.to_string (Effect_id.Set.elements t.known)
+  in
+  match (names, t.unknown) with
+  | [], false -> "{}"
+  | [], true -> "<unknown>"
+  | ns, false -> "{" ^ String.concat ", " ns ^ "}"
+  | ns, true -> "{" ^ String.concat ", " ns ^ ", ...unknown}"

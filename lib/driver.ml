@@ -56,9 +56,17 @@ let collect_aliases files =
       | exception _ -> ())
     files
 
+let dedup_by_modname units =
+  let seen = Hashtbl.create 64 in
+  List.filter
+    (fun u ->
+      let m = u.uf_facts.Builder.mf_modname in
+      if Hashtbl.mem seen m then false else (Hashtbl.add seen m (); true))
+    units
+
 let analyse files =
   collect_aliases files;
-  let units = List.filter_map load files in
+  let units = dedup_by_modname (List.filter_map load files) in
   let nodes = List.concat_map (fun u -> u.uf_facts.Builder.mf_nodes) units in
   let env = Solver.solve nodes in
   let findings =
@@ -71,11 +79,16 @@ let analyse files =
           Location.in_file
             (Filename.remove_extension (Filename.basename u.uf_file) ^ ".ml")
         in
-        match escaping with
-        | Effect_set.Top ->
-            [ { Report.f_kind = Report.Unknown_effects; f_entry = entry; f_loc = loc; f_path = [] } ]
-        | Effect_set.Known s ->
-            Effect_id.Set.elements s
+        (* Both parts are reported. Previously an unresolved call suppressed
+           every named escape in the same module. *)
+        let unknown_part =
+          if Effect_set.has_unknown escaping then
+            [ { Report.f_kind = Report.Unknown_effects; f_entry = entry;
+                f_loc = loc; f_path = [] } ]
+          else []
+        in
+        unknown_part
+        @ (Effect_set.known_elements escaping
             |> List.map (fun e ->
                    let path =
                      match Solver.blame_path env nodes e mf.Builder.mf_init with
@@ -86,7 +99,7 @@ let analyse files =
                      | { Solver.st_loc; _ } :: _ -> st_loc
                      | [] -> loc
                    in
-                   { Report.f_kind = Report.Escapes e; f_entry = entry; f_loc = loc; f_path = path }))
+                   { Report.f_kind = Report.Escapes e; f_entry = entry; f_loc = loc; f_path = path })))
       units
   in
   (* B2: scheduler mismatches, found anywhere in the program rather than only

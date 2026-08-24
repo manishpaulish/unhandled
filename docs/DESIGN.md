@@ -36,15 +36,24 @@ blame paths fall out of the same structure.
 
 ## Domain
 
-`Effect_set.t = Known of set | Top`.
+`Effect_set.t = { known : Effect_id.Set.t; unknown : bool }`.
 
-`Top` means "may perform something we could not identify": an unresolved
+`unknown` records that something unidentifiable is also in play: an unresolved
 higher-order call, a function with no summary, `perform` on a non-literal
-effect. Two rules keep it honest:
+effect value.
 
-- `Top \ handled = Top`. Removing known effects from an unknown set proves
-  nothing.
-- `Top` is reported as a warning, never silently treated as clean.
+This was originally `Known of set | Top`, and the difference matters. Under the
+old domain a module initialiser that touched a single unresolved external call
+collapsed to `Top`, discarding every effect we *had* identified in that module.
+The first ecosystem sweep showed the symptom clearly: 174 modules of real code,
+zero escapes, 61 unknown warnings. Carrying both components means an unresolved
+call costs precision only about the part we could not see.
+
+Two rules keep it honest:
+
+- Handler subtraction removes only from `known`; `unknown` survives, since an
+  effect we could not identify might not be one of the handled ones.
+- `unknown` is reported as a warning, never silently treated as clean.
 
 ## Fixpoint
 

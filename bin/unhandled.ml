@@ -113,10 +113,11 @@ let () =
           let rows =
             List.rev mf.Builder.mf_nodes
             |> List.filter_map (fun (n : Builder.node) ->
-                   match Solver.lookup env n.Builder.name with
-                   | Effect_set.Top -> incr unknown; None
-                   | Effect_set.Known s when Effect_id.Set.is_empty s -> None
-                   | set -> Some (n.Builder.name, set))
+                   let set = Solver.lookup env n.Builder.name in
+                   if Effect_set.known_elements set <> [] then
+                     Some (n.Builder.name, set)
+                   else if Effect_set.has_unknown set then (incr unknown; None)
+                   else None)
           in
           if rows <> [] then (
             Printf.printf "module %s\n" mf.Builder.mf_modname;
