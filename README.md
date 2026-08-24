@@ -112,6 +112,33 @@ w06   Lambda_iter.Emit            -    not constructible: no named function in t
 **A confirmed finding is a true positive by construction.** That is how this
 tool measures its own precision.
 
+## Measured, not claimed
+
+`test/fuzz` generates random effectful programs and checks the analyser against
+reality. It does not compute an expected answer: **the runtime is the oracle.**
+Generate a program, ask whether any effect escapes, then run it and see whether
+it actually crashes. Any disagreement is a genuine bug.
+
+```
+$ START=1 COUNT=600 bash test/fuzz/run_fuzz.sh
+seeds 1..600   analysed 600   skipped 0
+  agree           600
+  false positives 0
+  false negatives 0
+  agreement       100%
+```
+
+Generated programs nest syntactic and `Deep.try_with` handlers, forward through
+`| _ -> None` wildcards, call across functions, and pass effectful closures
+through `List.iter`. They are branch-free by design: a conditional would make
+the analyser join both arms and legitimately over-approximate, and that
+known imprecision would drown out real defects. Branching is a separate
+experiment, not a hidden caveat.
+
+The runner refuses to start unless the analyser flags a known-bad probe first.
+Without that guard a broken build reads as "predicted clean" on every seed and
+the run reports a wall of false negatives that are really a missing binary.
+
 ## Two modes, because a library is not an application
 
 A library that performs effects is not buggy: its handler lives in the

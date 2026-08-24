@@ -28,12 +28,15 @@ actual runtime behaviour.
 | Library mode: effect contracts (`contract`) | done |
 | Scheduler model table + B2 mismatch detection (`E003`) | done |
 | Scenario tests (cross-module, contract, witness, B2) | done |
+| Differential fuzzer, runtime as oracle | done |
+| **600 generated programs: 0 false positives, 0 false negatives** | measured |
 
 ## Next, in order
 
 1. **Confirm real scheduler paths** in `models/schedulers.conf` against
    installed Eio/Riot sources. The mechanism is done; the data is provisional.
-2. **QCheck generator** for the differential loop at 10k programs.
+2. **Scale the fuzzer to 10k seeds** and add a branching mode, reported
+   separately so join-imprecision is visible rather than hidden.
 3. **Sweep harness** over opam repos; retroactive crash corpus.
 4. 0-CFA behind `--cfa`, then LSP.
 5. B3: boundary-crossing effects (signal handlers, finalisers, C callbacks).
