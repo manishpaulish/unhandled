@@ -34,6 +34,24 @@ Two implementation bugs were found by reading this report:
    places. Flagging those would have been technically defensible and
    practically useless. Now recognised as a guard; see `test/guard/`.
 
+## The corpus
+
+`git log --all --grep="Effect.Unhandled"` on masc returns thirty commits. Six
+are recorded in `bench/retro_commits_masc.txt`; the clearest read as "wrap
+these tests in an Eio context", meaning that before the fix the code ran Eio
+operations with no runtime installed. That is the same failure as R1.
+
+Run the batch:
+
+```
+bash bench/retro_batch.sh masc https://github.com/jeong-sik/masc.git \
+     bench/retro_commits_masc.txt
+```
+
+It analyses each commit's parent and writes `bench/results/masc.retro.csv`.
+Commits that fail to build are recorded as such: they are part of the
+denominator, and dropping them would inflate the catch rate.
+
 ## Candidates still to reproduce
 
 - masc#1642, #3143, #3172 — the guard pattern itself, useful as negative tests.

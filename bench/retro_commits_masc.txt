@@ -1,0 +1,13 @@
+# Commits in jeong-sik/masc that fixed an unhandled-effect problem.
+# Found with: git log --all --oneline --grep="Effect.Unhandled"
+# Each one's PARENT is analysed: that is where the bug still existed.
+#
+# The first four are the clearest cases of "Eio code ran with no runtime",
+# which is the B1/B2 shape and the same failure as the crash recorded as R1.
+
+99f8da515a  fix(test): wrap coverage test helpers in Eio context (#3396)
+36ecd5ce9a  fix(ci): wrap Eio-dependent tests in Eio context (#3349)
+2ff62d2ac1  test(fd_accountant): wrap state tests in Eio.Switch.run (#20612)
+c98f0a575f  fix(core): guard Domain_pool_ref submits against non-Eio callers (#25171)
+4388c073d8  fix(core): actionable error when Eio work runs on a bare systhread (#21535)
+2f4504b805  test(keeper): run compaction test under Runtime fixture (#25297)
