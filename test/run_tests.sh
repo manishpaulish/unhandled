@@ -103,4 +103,21 @@ scenario "Eio API without a runtime"  test/eio_api   check    "Suspend escapes u
 scenario "Eio API under Eio_main.run" test/eio_ok    check    "0 error(s)"
 printf -- "------------------------------------------------------------------------------\n"
 [ $sfail -eq 0 ] && echo "scenarios: all passed" || echo "scenarios: $sfail failed"
+
+# The language server is exercised over the real protocol: a server that
+# compiles but never answers is worse than no server.
+echo
+echo "language server"
+printf -- "------------------------------------------------------------------------------\n"
+LSP="${UNHANDLED_LSP:-$ROOT/_build/default/bin/unhandled_lsp.exe}"
+if [ -x "$LSP" ] || [ -n "$RUN" ]; then
+  if OCAMLC="$OCAMLC" OCAMLRUN="$RUN" UNHANDLED_LSP="$LSP" \
+       python3 "$ROOT/test/lsp/run_lsp_test.py"; then
+    echo "lsp: all passed"
+  else
+    echo "lsp: FAILED"; sfail=$((sfail+1))
+  fi
+else
+  echo "lsp: skipped (server not built)"
+fi
 [ $((fail + sfail)) -eq 0 ]

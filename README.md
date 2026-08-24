@@ -266,6 +266,28 @@ Handlers for Eio, Riot, Moonpool and Miou live inside compiled dependencies we
 often have no `.cmt` for, so they are supplied as data in
 `models/schedulers.conf` rather than discovered by analysis.
 
+## Editor integration
+
+`unhandled-lsp` speaks LSP over stdin/stdout and re-checks on open and save.
+Diagnostics carry the blame path as `relatedInformation`, which editors render
+as a clickable chain — the finding *is* the path, not the line.
+
+```
+diagnostic: effect Metrics.Emit escapes unhandled   (E001)
+  - calls Metrics.process
+  - calls Metrics.log
+  - performs Emit
+```
+
+It reacts to save rather than to every keystroke, on purpose: effects are a
+whole-program property and the analysis reads `.cmt` files, so there is nothing
+useful to say about a buffer that has not been compiled. The summary cache is
+what makes re-checking on every save cheap enough to do.
+
+VS Code, Neovim or any LSP client can launch it directly; it needs no
+configuration beyond the binary path and a project with a `dune-project` and a
+`_build` directory.
+
 ## Documentation
 
 - `docs/TYPEDTREE-NOTES.md` — empirical notes on the OCaml 5.3 typed tree. Read

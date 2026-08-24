@@ -42,6 +42,7 @@ actual runtime behaviour.
 | Eio API requirement model (`api`/`requires`) | done |
 | Incremental cache: 200 modules, cold 0.18s / warm 0.05s | done, consistency-checked |
 | `make demo`: six sections, all executed live | done |
+| LSP server with blame path as relatedInformation | done, protocol-tested |
 | Scenario tests (cross-module, contract, witness, B2) | done |
 | Differential fuzzer, runtime as oracle | done |
 | **1000 generated programs: 0 false negatives** | measured |

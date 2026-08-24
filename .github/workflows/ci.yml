@@ -26,7 +26,7 @@ jobs:
 
       - run: opam exec -- dune build
 
-      # Corpus + scenarios: expectation vs analyser vs actual execution.
+      # Corpus, scenarios, and a real LSP session.
       - run: opam exec -- bash test/run_tests.sh
 
       # Self-host: the analyser must be clean on its own sources. It performs

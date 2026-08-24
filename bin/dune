@@ -1,4 +1,11 @@
 (executable
  (name unhandled)
  (public_name unhandled)
+ (modules unhandled)
+ (libraries unhandled_lib))
+
+(executable
+ (name unhandled_lsp)
+ (public_name unhandled-lsp)
+ (modules unhandled_lsp)
  (libraries unhandled_lib))
