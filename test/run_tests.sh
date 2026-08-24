@@ -95,6 +95,7 @@ scenario "scheduler mismatch (B2)"  test/schedulers check    "E003"
 scenario "re-exported effect alias"  test/alias     check    "0 error(s)"
 scenario "finaliser boundary (B3)"   test/boundary  check    "from a finaliser"
 scenario "signal handler (B3)"       test/boundary  check    "from a signal handler"
+scenario "Effect.Unhandled guard"    test/guard     check    "1 error(s)"
 printf -- "------------------------------------------------------------------------------\n"
 [ $sfail -eq 0 ] && echo "scenarios: all passed" || echo "scenarios: $sfail failed"
 [ $((fail + sfail)) -eq 0 ]

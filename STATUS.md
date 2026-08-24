@@ -35,6 +35,8 @@ actual runtime behaviour.
 | Sweep harness (`bench/sweep.sh`, 13 verified repos) | ready, needs opam |
 | Self-host: 0 errors on own sources, wired into CI | done |
 | OCaml 5.3 + 5.4 support via compat shim | done (5.4 path verified by CI) |
+| `try ... with Effect.Unhandled` guard recognition | done |
+| Retroactive corpus seeded from real crash reports | started, needs opam to reproduce |
 | Scenario tests (cross-module, contract, witness, B2) | done |
 | Differential fuzzer, runtime as oracle | done |
 | **1000 generated programs: 0 false negatives** | measured |

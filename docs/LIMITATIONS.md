@@ -14,6 +14,13 @@ that reports them.
   called later is not resolved until 0-CFA lands (tier 3).
 - **`Obj.magic`, C stubs, first-class modules.** Out of scope.
 
+## Deliberate suppressions
+
+- `try ... with Effect.Unhandled _` is treated as discharging the body's
+  effects. The effect genuinely escapes there, but the author has handled the
+  consequence on purpose; one real codebase does this in over fifty places.
+  Reporting them would be defensible and useless.
+
 ## Imprecise (may report false positives)
 
 - **Conditionals.** Both arms are joined, so an effect performed only on a path

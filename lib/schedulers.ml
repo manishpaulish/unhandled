@@ -60,9 +60,18 @@ let prefixes_of name =
   | Some s -> s.prefixes
   | None -> []
 
+(* OCaml mangles nested library modules with double underscores, so the same
+   effect can appear as Eio__core.Cancel.Get_context or as
+   Eio__core__Cancel.Get_context depending on how it is referenced. A real
+   crash report from the wild reads:
+
+     Fatal error: exception Stdlib.Effect.Unhandled(Eio__core__Cancel.Get_context)
+
+   Requiring a '.' separator would miss exactly that. Accept either. *)
 let has_prefix id p =
   let n = String.length p in
-  String.length id > n && String.sub id 0 n = p && id.[n] = '.'
+  String.length id > n && String.sub id 0 n = p
+  && (id.[n] = '.' || id.[n] = '_')
 
 (* Which scheduler owns this effect, if any? Used to tell "you forgot a
    handler" apart from "you are running this under the wrong runtime". *)

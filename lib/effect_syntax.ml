@@ -66,6 +66,33 @@ let handled_of_effect_cases ~modname cases =
     (fun acc c -> handled_join acc (effect_of_pattern ~modname c.c_lhs))
     handled_empty cases
 
+(* Real code guards against missing handlers explicitly:
+
+     try Eio.Mutex.use_rw m f with Effect.Unhandled _ -> Stdlib.Mutex.lock ...
+
+   The effect really does escape there; the author knows and has handled the
+   consequence. Reporting it would be technically defensible and practically
+   wrong, so a try whose exception cases catch Effect.Unhandled discharges the
+   effects of its body. Observed in the wild across several repositories. *)
+let unhandled_exn_names =
+  [ "Stdlib.Effect.Unhandled"; "Effect.Unhandled"; "Stdlib__Effect.Unhandled" ]
+
+let rec catches_unhandled : type k. k general_pattern -> bool =
+ fun p ->
+  match p.pat_desc with
+  | Tpat_construct (_, cd, _, _) -> (
+      match Compat.ext_path cd with
+      | Some path -> List.mem (Path.name path) unhandled_exn_names
+      | None -> false)
+  | Tpat_or (a, b, _) -> catches_unhandled a || catches_unhandled b
+  | Tpat_alias (p, _, _, _) -> catches_unhandled p
+  | Tpat_exception p -> catches_unhandled p
+  | Tpat_any | Tpat_var _ -> false
+  | _ -> false
+
+let guards_unhandled cases =
+  List.exists (fun c -> catches_unhandled c.c_lhs) cases
+
 (* ------------------------------------------------ Effect.Deep / Effect.Shallow *)
 
 (* Calls that install a handler, and the 0-based index of the handler-record

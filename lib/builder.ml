@@ -57,7 +57,12 @@ let rec of_expr ctx (e : expression) : Eff_expr.t =
          :: (List.map (fun c -> of_expr ctx c.c_rhs) comp_cases
              @ List.map (fun c -> of_expr ctx c.c_rhs) eff_cases))
   | Texp_try (body, exn_cases, eff_cases) ->
-      let handled = Effect_syntax.handled_of_effect_cases ~modname:ctx.modname eff_cases in
+      let handled =
+        (* An explicit `with Effect.Unhandled _` guard discharges everything
+           the body performs: the author has dealt with the consequence. *)
+        if Effect_syntax.guards_unhandled exn_cases then Effect_syntax.All
+        else Effect_syntax.handled_of_effect_cases ~modname:ctx.modname eff_cases
+      in
       Eff_expr.Join
         (Eff_expr.Handle (of_expr ctx body, handled)
          :: (List.map (fun c -> of_expr ctx c.c_rhs) exn_cases
