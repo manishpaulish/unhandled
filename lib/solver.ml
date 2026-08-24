@@ -91,3 +91,45 @@ let blame_path env nodes eff root =
         then None else go visiting t
   in
   go SSet.empty root
+
+
+(* Which calls made us blind?
+
+   A module reported as "unknown effects may escape" is useless on its own: it
+   says we failed without saying where. Naming the unresolved callees turns the
+   warning into a work list, since the frequent ones are exactly the functions
+   worth adding to the models. *)
+let unknown_sources env nodes root =
+  let tbl = node_table nodes in
+  let acc = ref [] in
+  let rec go visiting e =
+    match e with
+    | Eff_expr.Unknown loc -> acc := ("<unresolved value>", loc) :: !acc
+    | Eff_expr.Call (name, loc) ->
+        if SSet.mem name visiting then ()
+        else (
+          match SMap.find_opt name tbl with
+          | None ->
+              (* No summary at all: external code with no .cmt. *)
+              if Effect_set.has_unknown (lookup env name) then
+                acc := (name, loc) :: !acc
+          | Some nd ->
+              if Effect_set.has_unknown (lookup env name) then
+                go (SSet.add name visiting) nd.Builder.body)
+    | Eff_expr.Join l -> List.iter (go visiting) l
+    | Eff_expr.Handle (t, _) -> go visiting t
+    | Eff_expr.Scheduler_run (_, t, _) -> go visiting t
+    | Eff_expr.Boundary _ -> ()
+    | Eff_expr.Const _ | Eff_expr.Perform _ -> ()
+  in
+  go SSet.empty root;
+  (* Most frequent first, deduplicated by callee. *)
+  let counts = Hashtbl.create 16 in
+  List.iter
+    (fun (n, loc) ->
+      match Hashtbl.find_opt counts n with
+      | Some (c, l) -> Hashtbl.replace counts n (c + 1, l)
+      | None -> Hashtbl.replace counts n (1, loc))
+    !acc;
+  Hashtbl.fold (fun n (c, loc) a -> (n, c, loc) :: a) counts []
+  |> List.sort (fun (_, a, _) (_, b, _) -> compare b a)

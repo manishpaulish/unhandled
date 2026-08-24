@@ -41,10 +41,24 @@ def main(results_dir):
         # Where did we go blind? Cluster the unknowns by module.
         unk = [x for x in d["findings"] if x["kind"] == "unknown"]
         if unk:
-            mods = collections.Counter(x["entry"].split()[0] for x in unk)
-            print(f"  -- {len(unk)} unknown-effect warning(s), top modules --")
-            for m, c in mods.most_common(8):
-                print(f"    {c:4d}  {m}")
+            print(f"  -- {len(unk)} unknown-effect warning(s) --")
+            # Which callees actually made us blind? These are the functions
+            # worth adding to models/, ranked by how often they appear.
+            causes = collections.Counter()
+            for x in unk:
+                for st in x["path"]:
+                    w = st["what"]
+                    if w.startswith("unresolved call to "):
+                        name = w[len("unresolved call to "):].split(" (x")[0]
+                        causes[name] += 1
+            if causes:
+                print("     top causes of blindness:")
+                for n, c in causes.most_common(12):
+                    print(f"    {c:4d}  {n}")
+            else:
+                mods = collections.Counter(x["entry"].split()[0] for x in unk)
+                for m, c in mods.most_common(8):
+                    print(f"    {c:4d}  {m}")
     print("\n=== totals ===")
     for k in ("total","escapes","scheduler_mismatch","boundary","unknown"):
         print(f"  {k:20s} {grand[k]}")

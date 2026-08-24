@@ -83,8 +83,19 @@ let analyse files =
            every named escape in the same module. *)
         let unknown_part =
           if Effect_set.has_unknown escaping then
+            let srcs = Solver.unknown_sources env nodes mf.Builder.mf_init in
+            let path =
+              srcs
+              |> List.filteri (fun i _ -> i < 5)
+              |> List.map (fun (n, c, l) ->
+                     { Solver.st_what =
+                         Printf.sprintf "unresolved call to %s%s" n
+                           (if c > 1 then Printf.sprintf " (x%d)" c else "");
+                       st_loc = l; st_callee = None })
+            in
             [ { Report.f_kind = Report.Unknown_effects; f_entry = entry;
-                f_loc = loc; f_path = [] } ]
+                f_loc = (match path with s :: _ -> s.Solver.st_loc | [] -> loc);
+                f_path = path } ]
           else []
         in
         unknown_part
