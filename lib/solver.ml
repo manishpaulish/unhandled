@@ -19,6 +19,7 @@ let rec eval env (e : Eff_expr.t) : Effect_set.t =
   | Eff_expr.Call (name, _) -> lookup env name
   | Eff_expr.Join l -> List.fold_left (fun a x -> Effect_set.join a (eval env x)) Effect_set.empty l
   | Eff_expr.Handle (t, h) -> Effect_syntax.subtract_handled (eval env t) h
+  | Eff_expr.Boundary _ -> Effect_set.empty
   | Eff_expr.Scheduler_run (name, t, _) ->
       let prefixes = Schedulers.prefixes_of name in
       Effect_set.remove_where
@@ -83,6 +84,7 @@ let blame_path env nodes eff root =
     | Eff_expr.Join l ->
         List.fold_left (fun acc x -> match acc with Some _ -> acc | None -> go visiting x) None l
     | Eff_expr.Handle (t, h) -> if covers h eff then None else go visiting t
+    | Eff_expr.Boundary _ -> None
     | Eff_expr.Scheduler_run (name, t, _) ->
         let prefixes = Schedulers.prefixes_of name in
         if List.exists (Schedulers.has_prefix (Effect_id.to_string eff)) prefixes

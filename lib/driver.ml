@@ -128,4 +128,14 @@ let analyse files =
         | _ -> true)
       findings
   in
-  (units, env, findings @ b2)
+  let b3 =
+    Boundary_check.check env roots
+    |> List.map (fun (c : Boundary_check.crossing) ->
+           { Report.f_kind =
+               Report.Boundary_crossing (c.Boundary_check.b_effect,
+                                         c.Boundary_check.b_why);
+             f_entry = c.Boundary_check.b_why;
+             f_loc = c.Boundary_check.b_loc;
+             f_path = [] })
+  in
+  (units, env, findings @ b2 @ b3)

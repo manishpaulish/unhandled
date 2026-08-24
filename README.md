@@ -177,6 +177,28 @@ app.ml:2:9: error[E001] effect Svc.Ping escapes unhandled
   via       app.ml:2:9  calls Svc.run_all
 ```
 
+## Effects in contexts no handler can reach
+
+The manual is explicit that an effect performed from a signal handler,
+finaliser, GC alarm, memprof callback, or across a C `caml_callback` frame
+always raises `Effect.Unhandled`. No handler anywhere in the program can
+rescue it, which makes these findings unconditional.
+
+```ocaml
+let () = Gc.finalise (fun _ -> Effect.perform Log) (ref 0)
+let () =
+  match Gc.full_major () with           (* a handler that cannot help *)
+  | () -> print_endline "no crash"
+  | effect Log, k -> Effect.Deep.continue k ()
+```
+```
+fin_leak.ml:3:9: error[E004] effect Fin_leak.Log can be performed from a
+                             finaliser, where no handler can ever catch it
+```
+
+Running that program confirms it: `Fatal error: exception
+Stdlib.Effect.Unhandled(Fin_leak.Log)`, despite the enclosing handler.
+
 ## Scheduler mismatches
 
 OCaml's concurrency libraries are mutually incompatible effect schedulers.

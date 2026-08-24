@@ -2,6 +2,7 @@ type kind =
   | Escapes of Effect_id.t
   | Unknown_effects
   | Scheduler_mismatch of Effect_id.t * string * string  (* effect, owner, running under *)
+  | Boundary_crossing of Effect_id.t * string           (* effect, fatal context *)
 
 type finding = {
   f_kind : kind;
@@ -12,13 +13,16 @@ type finding = {
 
 let string_of_loc (l : Location.t) =
   let p = l.Location.loc_start in
-  Printf.sprintf "%s:%d:%d" p.Lexing.pos_fname p.Lexing.pos_lnum
-    (p.Lexing.pos_cnum - p.Lexing.pos_bol)
+  if p.Lexing.pos_lnum <= 0 then p.Lexing.pos_fname
+  else
+    Printf.sprintf "%s:%d:%d" p.Lexing.pos_fname p.Lexing.pos_lnum
+      (p.Lexing.pos_cnum - p.Lexing.pos_bol)
 
 let code = function
   | Escapes _ -> "E001"
   | Unknown_effects -> "W002"
   | Scheduler_mismatch _ -> "E003"
+  | Boundary_crossing _ -> "E004"
 
 let headline f =
   match f.f_kind with
@@ -30,6 +34,10 @@ let headline f =
       Printf.sprintf
         "effect %s belongs to the %s scheduler but is performed under the %s runtime"
         (Effect_id.to_string e) owner under
+  | Boundary_crossing (e, why) ->
+      Printf.sprintf
+        "effect %s can be performed from %s, where no handler can ever catch it"
+        (Effect_id.to_string e) why
 
 let render buf f =
   Printf.bprintf buf "%s: %s[%s] %s\n"

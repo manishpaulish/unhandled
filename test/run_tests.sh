@@ -93,6 +93,8 @@ scenario "library contract"         test/xmodule    contract "may perform {Svc.P
 scenario "witness confirms finding" test/xmodule    witness  "1/1 findings confirmed"
 scenario "scheduler mismatch (B2)"  test/schedulers check    "E003"
 scenario "re-exported effect alias"  test/alias     check    "0 error(s)"
+scenario "finaliser boundary (B3)"   test/boundary  check    "from a finaliser"
+scenario "signal handler (B3)"       test/boundary  check    "from a signal handler"
 printf -- "------------------------------------------------------------------------------\n"
 [ $sfail -eq 0 ] && echo "scenarios: all passed" || echo "scenarios: $sfail failed"
 [ $((fail + sfail)) -eq 0 ]

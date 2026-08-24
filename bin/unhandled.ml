@@ -75,6 +75,7 @@ let () =
             | Report.Escapes e -> Effect_id.to_string e
             | Report.Unknown_effects -> "<unknown>"
             | Report.Scheduler_mismatch (e, _, _) -> Effect_id.to_string e
+            | Report.Boundary_crossing (e, _) -> Effect_id.to_string e
           in
           match Witness.generate ~nodes ~arities f with
           | Error why -> Printf.printf "%-4s  %-26s  %-24s %s\n" id label "-" ("not constructible: " ^ why)

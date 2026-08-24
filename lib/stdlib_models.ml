@@ -17,7 +17,7 @@ let combinators : (string * int list) list =
     ("Stdlib.Seq.iter", [ 0 ]); ("Stdlib.Seq.map", [ 0 ]);
     ("Stdlib.Option.iter", [ 0 ]); ("Stdlib.Option.map", [ 0 ]);
     ("Stdlib.Result.map", [ 0 ]); ("Stdlib.Fun.protect", [ 0 ]);
-    ("Stdlib.Domain.spawn", [ 0 ]); ("Stdlib.Lazy.force", []);
+    ("Stdlib.Domain.spawn", [ 0 ]);
     ("Stdlib.Hashtbl.iter", [ 0 ]); ("Stdlib.String.iter", [ 0 ]) ]
 
 let is_combinator p = List.assoc_opt p combinators
@@ -39,4 +39,18 @@ let pure_prefixes =
     "Stdlib.Effect.Deep.continue"; "Stdlib.Effect.Deep.discontinue";
     "Stdlib.Effect.Shallow.fiber" ]
 
-let is_known_pure p = List.mem p pure_prefixes
+(* Modules whose functions can run caller-supplied code, and therefore can
+   perform caller effects. Everything else in the standard library performs no
+   *user-defined* effect, which is what we are tracking. This assumption is
+   what keeps ordinary code from degrading to "unknown effects" on every call
+   to Printf or Gc; it is stated in docs/LIMITATIONS.md. *)
+let may_run_user_code = [ "Stdlib.Effect."; "Stdlib.Lazy."; "Stdlib.Domain." ]
+
+let starts_with pre s =
+  String.length s >= String.length pre && String.sub s 0 (String.length pre) = pre
+
+let is_known_pure p =
+  List.mem p pure_prefixes
+  || (starts_with "Stdlib." p
+      && (not (List.exists (fun m -> starts_with m p) may_run_user_code))
+      && is_combinator p = None)

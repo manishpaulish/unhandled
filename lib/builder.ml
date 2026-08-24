@@ -90,6 +90,27 @@ and of_apply ctx e f args =
           (* perform applied to a non-literal effect: identity unknown. *)
           | None -> Eff_expr.Unknown e.exp_loc)
       | _ -> Eff_expr.Unknown e.exp_loc)
+  | Texp_ident (p, _, _) when Boundaries.find (Path.name p) <> None ->
+      let r = Option.get (Boundaries.find (Path.name p)) in
+      let cb =
+        match List.nth_opt arg_exprs r.Boundaries.callback_arg with
+        (* Sys.signal takes Signal_handle f, not f: unwrap the constructor so
+           the handler itself is what gets analysed. *)
+        | Some { exp_desc = Texp_construct (_, cd, [ inner ]); _ }
+          when String.equal cd.Types.cstr_name "Signal_handle" -> Some inner
+        | other -> other
+      in
+      let inner_eff =
+        match cb with
+        | Some c -> effects_of_calling ctx c
+        | None -> Eff_expr.Const Effect_set.empty
+      in
+      let others =
+        List.filteri (fun i _ -> i <> r.Boundaries.callback_arg) arg_exprs
+        |> List.map (of_expr ctx)
+      in
+      Eff_expr.Join
+        (Eff_expr.Boundary (r.Boundaries.why, inner_eff, e.exp_loc) :: others)
   | Texp_ident (p, _, _) when Schedulers.scheduler_of_run (Path.name p) <> None ->
       let sch = Option.get (Schedulers.scheduler_of_run (Path.name p)) in
       let comp_eff =

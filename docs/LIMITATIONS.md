@@ -22,6 +22,10 @@ that reports them.
 
 - Calls to functions with no `.cmt` available become `Top`, reported as a
   warning about unknown effects rather than a specific escape.
+- **Modelling assumption:** the standard library performs no *user-defined*
+  effects, so an unmodelled `Stdlib.*` call is treated as pure. Without this,
+  every call to `Printf` or `Gc` degrades the result to "unknown". `Effect`,
+  `Lazy` and `Domain` are excluded, since they can run caller-supplied code.
 - `effc` arms whose right-hand side is not a literal `Some`/`None` are treated
   as not handled.
 - Library mode (`unhandled contract`) reports effect contracts rather than
@@ -35,7 +39,9 @@ that reports them.
 
 ## Not yet implemented
 
-- Boundary-crossing effects (B3): signal handlers, finalisers, GC alarms, and
-  effects crossing C `caml_callback` frames.
 - 0-CFA for function values that flow through variables and data structures.
 - LSP server.
+- B3 covers the registration sites we model (`Gc.finalise`, `Gc.finalise_last`,
+  `Gc.create_alarm`, `Sys.signal`, `Sys.set_signal`, `Callback.register`,
+  `Gc.Memprof.start`). A callback reaching a fatal context by some other route
+  is not detected.

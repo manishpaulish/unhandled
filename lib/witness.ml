@@ -76,6 +76,8 @@ let generate ~(nodes : Builder.node list) ~arities (f : Report.finding) =
   | Report.Unknown_effects -> Error "finding has no specific effect"
   | Report.Scheduler_mismatch _ ->
       Error "scheduler mismatch: witness needs the real runtime installed"
+  | Report.Boundary_crossing _ ->
+      Error "boundary crossing: not reproducible by a direct call"
   | Report.Escapes eff -> (
       match List.find_map (fun s -> s.Solver.st_callee) f.Report.f_path with
       | None -> Error "no named function in the blame path"

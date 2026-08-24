@@ -17,6 +17,10 @@ type t =
      handlers live in a dependency we may have no .cmt for, so they come from
      the model table rather than from analysis. *)
   | Scheduler_run of string * t * Location.t
+  (* [Boundary (why, computation, loc)]: a callback registered to run in a
+     context where any effect is fatal. It contributes nothing to the
+     surrounding effect set, because it does not run here. *)
+  | Boundary of string * t * Location.t
 
 let empty = Const Effect_set.empty
 let join ts = Join ts

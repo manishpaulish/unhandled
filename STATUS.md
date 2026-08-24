@@ -29,6 +29,8 @@ actual runtime behaviour.
 | Scheduler model table + B2 mismatch detection (`E003`) | done |
 | Eio entry points and effects confirmed against upstream source | done |
 | Effect-constructor alias canonicalisation (rebindings) | done |
+| B3: effects in finalisers, signal handlers, GC alarms, C callbacks (`E004`) | done |
+| Stdlib purity model (removes unknown-effect noise) | done |
 | Scenario tests (cross-module, contract, witness, B2) | done |
 | Differential fuzzer, runtime as oracle | done |
 | **1000 generated programs: 0 false negatives** | measured |
@@ -43,7 +45,7 @@ actual runtime behaviour.
    recursion and multi-module generation.
 3. **Sweep harness** over opam repos; retroactive crash corpus.
 4. 0-CFA behind `--cfa`, then LSP.
-5. B3: boundary-crossing effects (signal handlers, finalisers, C callbacks).
+5. 0-CFA for function values that flow through data.
 
 ## Known gaps
 
