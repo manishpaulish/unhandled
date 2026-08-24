@@ -17,6 +17,12 @@ START="${START:-1}"; COUNT="${COUNT:-100}"
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$F/failures"
 
+# Build the generator if needed, so this script is self-contained in CI.
+if [ ! -x "$F/gen" ]; then
+  ( cd "$F" && $OCAMLC gen.ml -o gen >/dev/null 2>&1 ) \
+    || { echo "FATAL: could not build the program generator"; exit 2; }
+fi
+
 # Refuse to run against a missing or broken analyser. Without this check a
 # failed invocation reads as "predicted clean" for every seed, and the run
 # reports a wall of false negatives that are really just a missing binary.
@@ -62,4 +68,9 @@ echo "  false negatives $fn"
 if [ $total -gt 0 ]; then
   echo "  agreement       $(( agree * 100 / total ))%"
 fi
-[ $((fp+fn)) -eq 0 ]
+# A false negative is always a failure: the analyser stayed silent about a
+# crash that really happened. False positives are only tolerated in branching
+# mode, where joining both arms of a conditional is expected imprecision.
+if [ $fn -gt 0 ]; then exit 1; fi
+if [ -n "${ALLOW_FP:-}" ]; then exit 0; fi
+[ $fp -eq 0 ]

@@ -1,5 +1,6 @@
 name: ci
 on: [push, pull_request]
+
 jobs:
   build:
     strategy:
@@ -9,9 +10,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      # Needs unhandled.opam to exist, otherwise this is a no-op and dune is
+      # never installed. That is exactly how CI #1 and #2 failed with
+      # "Command not found 'dune'".
       - run: opam install . --deps-only --with-test
+
       - run: opam exec -- dune build
+
+      # Corpus + scenarios: expectation vs analyser vs actual execution.
       - run: opam exec -- bash test/run_tests.sh
+
+      # Differential fuzzing, both modes. Branch-free must stay exact;
+      # branching is allowed to over-approximate but never to miss a crash.
+      - run: opam exec -- bash test/fuzz/run_fuzz.sh
+        env:
+          START: 1
+          COUNT: 100
+
+      - run: opam exec -- bash test/fuzz/run_fuzz.sh
+        env:
+          MODE: branch
+          START: 1
+          COUNT: 60
+          ALLOW_FP: 1

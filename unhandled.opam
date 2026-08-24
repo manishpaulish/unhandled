@@ -1,0 +1,25 @@
+opam-version: "2.0"
+synopsis: "A static effect-safety checker for OCaml 5"
+description: """
+OCaml 5's effect handlers are untyped: the compiler does not check that
+performed effects are handled, so a missing handler compiles cleanly and
+crashes at runtime with Effect.Unhandled.
+
+unhandled infers per-function effect sets from the compiler's own typed ASTs,
+propagates them by call-graph fixpoint, subtracts effects discharged at handler
+sites, and reports every perform that can escape, with a blame path and an
+executable witness program that reproduces the crash.
+"""
+maintainer: ["Team Skill Issue"]
+authors: ["Team Skill Issue"]
+license: "MIT"
+homepage: "https://github.com/manishpaulish/unhandled"
+bug-reports: "https://github.com/manishpaulish/unhandled/issues"
+dev-repo: "git+https://github.com/manishpaulish/unhandled.git"
+depends: [
+  "ocaml" {>= "5.1"}
+  "dune" {>= "3.0"}
+]
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+]
