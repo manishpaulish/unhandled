@@ -36,7 +36,7 @@ fi
 agree=0; fp=0; fn=0; skipped=0
 for ((s=START; s<START+COUNT; s++)); do
   d="$WORK/s$s"; mkdir -p "$d"
-  $RUN "$F/gen" "$s" > "$d/prog.ml" 2>/dev/null || { skipped=$((skipped+1)); continue; }
+  $RUN "$F/gen" "$s" ${MODE:-} > "$d/prog.ml" 2>/dev/null || { skipped=$((skipped+1)); continue; }
   ( cd "$d" && $OCAMLC -bin-annot -c prog.ml >/dev/null 2>&1 ) || { skipped=$((skipped+1)); continue; }
 
   out="$($RUN "$UNHANDLED" check "$d" 2>/dev/null)"
@@ -55,7 +55,7 @@ for ((s=START; s<START+COUNT; s++)); do
 done
 
 total=$((agree+fp+fn))
-echo "seeds $START..$((START+COUNT-1))   analysed $total   skipped $skipped"
+echo "seeds $START..$((START+COUNT-1))   mode ${MODE:-branch-free}   analysed $total   skipped $skipped"
 echo "  agree           $agree"
 echo "  false positives $fp"
 echo "  false negatives $fn"

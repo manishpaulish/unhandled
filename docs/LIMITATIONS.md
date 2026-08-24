@@ -16,6 +16,10 @@ that reports them.
 
 ## Imprecise (may report false positives)
 
+- **Conditionals.** Both arms are joined, so an effect performed only on a path
+  that never executes is still reported. Measured at 5.3% of 400 generated
+  branching programs; see the table in the README.
+
 - Calls to functions with no `.cmt` available become `Top`, reported as a
   warning about unknown effects rather than a specific escape.
 - `effc` arms whose right-hand side is not a literal `Some`/`None` are treated

@@ -29,14 +29,16 @@ actual runtime behaviour.
 | Scheduler model table + B2 mismatch detection (`E003`) | done |
 | Scenario tests (cross-module, contract, witness, B2) | done |
 | Differential fuzzer, runtime as oracle | done |
-| **600 generated programs: 0 false positives, 0 false negatives** | measured |
+| **1000 generated programs: 0 false negatives** | measured |
+| Branch-free: 600 programs, 0 FP, 0 FN | measured |
+| Branching: 400 programs, 5.3% FP, 0 FN (join over-approximation) | measured |
 
 ## Next, in order
 
 1. **Confirm real scheduler paths** in `models/schedulers.conf` against
    installed Eio/Riot sources. The mechanism is done; the data is provisional.
-2. **Scale the fuzzer to 10k seeds** and add a branching mode, reported
-   separately so join-imprecision is visible rather than hidden.
+2. **Scale the fuzzer to 10k seeds** now that both modes are in place, and add
+   recursion and multi-module generation.
 3. **Sweep harness** over opam repos; retroactive crash corpus.
 4. 0-CFA behind `--cfa`, then LSP.
 5. B3: boundary-crossing effects (signal handlers, finalisers, C callbacks).

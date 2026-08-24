@@ -119,21 +119,41 @@ reality. It does not compute an expected answer: **the runtime is the oracle.**
 Generate a program, ask whether any effect escapes, then run it and see whether
 it actually crashes. Any disagreement is a genuine bug.
 
+| Mode | Programs | False positives | False negatives | Agreement |
+|---|---|---|---|---|
+| branch-free | 600 | 0 | 0 | 100% |
+| branching   | 400 | 21 (5.3%) | 0 | 94.7% |
+
+**Zero false negatives across 1000 generated programs.** The imprecision is
+one-sided: the analyser over-approximates, and never stays silent about a
+crash that actually happens.
+
+The branching false positives are join over-approximation, and we checked that
+rather than assuming it. In `test/fuzz/failures/fp_seed122.ml` the flagged
+`perform E3` sits in an `else` branch that never executes; the analyser joins
+both arms of every conditional, so it reports an effect the run never performs.
+Branch-free and branching results are reported separately for exactly this
+reason: folding them together would hide real defects behind known,
+explainable imprecision.
+
+Generated programs nest syntactic and `Deep.try_with` handlers, forward through
+`| _ -> None` wildcards, call across functions, and pass effectful closures
+through `List.iter`.
+
 ```
 $ START=1 COUNT=600 bash test/fuzz/run_fuzz.sh
-seeds 1..600   analysed 600   skipped 0
+seeds 1..600   mode branch-free   analysed 600   skipped 0
   agree           600
   false positives 0
   false negatives 0
   agreement       100%
-```
 
-Generated programs nest syntactic and `Deep.try_with` handlers, forward through
-`| _ -> None` wildcards, call across functions, and pass effectful closures
-through `List.iter`. They are branch-free by design: a conditional would make
-the analyser join both arms and legitimately over-approximate, and that
-known imprecision would drown out real defects. Branching is a separate
-experiment, not a hidden caveat.
+$ MODE=branch START=1 COUNT=400 bash test/fuzz/run_fuzz.sh
+  agree           379
+  false positives 21
+  false negatives 0
+  agreement       94%
+```
 
 The runner refuses to start unless the analyser flags a known-bad probe first.
 Without that guard a broken build reads as "predicted clean" on every seed and

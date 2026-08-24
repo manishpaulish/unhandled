@@ -19,6 +19,12 @@ type expr =
   | Iter of expr                      (* List.iter (fun _ -> e) [();()] *)
   | HandleSyn of int list * expr      (* match .. with effect Ei, k *)
   | HandleDeep of int list * expr     (* Effect.Deep.try_with, with _ -> None *)
+  | If of expr * expr                 (* branching mode only *)
+
+(* Branching mode is opt-in and reported separately. The analyser joins both
+   arms of a conditional, so it legitimately over-approximates; mixing that
+   into the main figure would hide real defects behind known imprecision. *)
+let branching = ref false
 
 let rec gen_expr depth nfuns =
   let leaf () =
@@ -31,7 +37,13 @@ let rec gen_expr depth nfuns =
     | 0 -> leaf ()
     | 1 -> Seq (gen_expr (depth - 1) nfuns, gen_expr (depth - 1) nfuns)
     | 2 -> Iter (gen_expr (depth - 1) nfuns)
-    | 3 | 4 ->
+    | 3 ->
+        if !branching then If (gen_expr (depth - 1) nfuns, gen_expr (depth - 1) nfuns)
+        else
+          let n = 1 + Random.int 2 in
+          let hs = List.init n (fun _ -> Random.int neffects) in
+          HandleSyn (hs, gen_expr (depth - 1) nfuns)
+    | 4 ->
         let n = 1 + Random.int 2 in
         let hs = List.init n (fun _ -> Random.int neffects) in
         HandleSyn (hs, gen_expr (depth - 1) nfuns)
@@ -62,6 +74,9 @@ let rec emit ind e =
           p "%s | effect E%d, k -> Effect.Deep.continue k ()\n" pad i)
         (uniq hs);
       p "%s)" pad
+  | If (a, b) ->
+      p "%s(if !taken then\n" pad; emit (ind + 2) a;
+      p "\n%s else\n" pad; emit (ind + 2) b; p "\n%s)" pad
   | HandleDeep (hs, a) ->
       p "%s(Effect.Deep.try_with (fun () ->\n" pad; emit (ind + 2) a;
       p "\n%s) ()\n" pad;
@@ -75,11 +90,15 @@ let rec emit ind e =
 
 let () =
   let seed = int_of_string Sys.argv.(1) in
+  if Array.length Sys.argv > 2 && Sys.argv.(2) = "branch" then branching := true;
   Random.init seed;
   let nfuns = 1 + Random.int 3 in
   for i = 0 to neffects - 1 do
     p "type _ Effect.t += E%d : unit Effect.t\n" i
   done;
+  (* A ref the compiler cannot fold away, so the analyser must join both arms
+     while execution only ever takes one. *)
+  if !branching then p "let taken = ref true\n";
   (* Functions may only call functions defined before them: no recursion, so
      every generated program terminates. *)
   for i = 0 to nfuns - 1 do
