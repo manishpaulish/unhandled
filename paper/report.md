@@ -1,0 +1,191 @@
+# unhandled: a static effect-safety checker for OCaml 5
+
+**Team Skill Issue — SegFault 2026**
+
+---
+
+## 1. The problem
+
+OCaml 5's effect handlers are untyped. The manual states it directly, in
+*Language extensions → Effect handlers → Unhandled effects*:
+
+> Unlike languages such as Eff and Koka, effect handlers in OCaml do not
+> provide effect safety; the compiler does not statically ensure that all the
+> effects performed by the program are handled.
+
+A missing handler compiles without warnings and raises `Effect.Unhandled` at
+the point of `perform`. Effect handlers power OCaml 5's concurrency stack —
+Eio, Riot, Miou, Moonpool, Domainslib — so the language's flagship feature
+ships with no static guard against its own failure mode. Typed effect systems
+are active research with no landing date.
+
+`unhandled` is a static analyser that reports effects which can escape, working
+from the compiler's own typed ASTs, with no annotations and no forked compiler.
+
+## 2. Approach
+
+**Symbolic effect expressions.** Handler subtraction is scoped to a
+sub-expression, not to a function: in `try_with g () h; perform E`, the handler
+discharges what `g` performs — including effects arriving through calls — but
+not the `perform E` that follows. A pass that accumulated effect *sets* could
+not express this, because `g`'s contribution is unknown until `g` is solved. So
+the walk builds a term:
+
+```
+t ::= Const s | Perform e | Unknown | Call f
+    | Join [t] | Handle (t, h) | Scheduler_run (s, t) | Boundary (why, t)
+```
+
+which is evaluated after summaries exist. Scoping stays exact, and blame paths
+fall out of the same structure.
+
+**Domain.** `{ known : EffectSet; unknown : bool }`. The `unknown` flag records
+that something unidentifiable is also in play. An earlier design used
+`Known of set | Top`, where one unresolved call collapsed the whole set; §4.4
+describes how the ecosystem sweep exposed that.
+
+**Fixpoint.** Summaries start at bottom and are recomputed until stable. The
+lattice is finite and evaluation is monotone, so recursion receives its least
+fixed point.
+
+## 3. What it detects
+
+| Code | Class |
+|---|---|
+| E001 | An effect escapes to a program entry point with no handler on the path |
+| E003 | An effect belonging to one scheduler is performed under another's runtime |
+| E004 | An effect reaches a context where no handler can ever catch it |
+| W002 | Effects of unidentifiable origin may escape, with the unresolved callees named |
+
+E004 covers finalisers, signal handlers, GC alarms, memprof callbacks, C
+`caml_callback` frames — all documented by the manual as always fatal — and
+**handler-scope transfers**: `Domain.spawn`, `Thread.create`,
+`Eio_unix.run_in_systhread`. A handler lives on one fiber's stack; moving
+execution elsewhere leaves it behind.
+
+**Library and executable modes.** A library that performs effects is not buggy;
+its handler lives in the application. `unhandled contract` reports what a
+module asks callers to handle; `check` reports errors for whole programs.
+Without this distinction every Eio-based library reads as broken.
+
+**Witnesses.** Each finding is turned into a program that is generated,
+compiled and run. The witness installs a handler for the effect under
+suspicion and reports a positive confirmation when it arrives — it does not
+parse the crash message, because the runtime prints the effect payload only
+sometimes. A confirmed finding is a true positive by construction.
+
+## 4. Evaluation
+
+### 4.1 Differential fuzzing, with the runtime as oracle
+
+`test/fuzz` generates random effectful programs. It does not compute an
+expected answer: it asks the analyser whether an effect escapes, then **runs
+the program**. Reality decides.
+
+| Mode | Programs | False positives | False negatives | Agreement |
+|---|---|---|---|---|
+| branch-free | 600 | 0 | 0 | 100% |
+| branching | 400 | 21 (5.3%) | 0 | 94.7% |
+
+**Zero false negatives across 1000 generated programs.** The imprecision is
+one-sided: the analyser over-approximates and never goes quiet about a crash
+that happens. The branching false positives are join over-approximation, and
+we verified that rather than assuming it: in `fp_seed122` the flagged `perform`
+sits in an `else` branch that never executes. The two modes are reported
+separately so known imprecision cannot bury a real defect.
+
+### 4.2 Production code
+
+316 modules across eio, picos, domainslib and one Eio application were analysed
+end to end. Zero escapes — the expected answer for a corpus of libraries, whose
+handlers live in their callers. `contract` extracts correct, useful contracts
+from that same code:
+
+```
+Picos.Trigger.await   may perform {Picos.Trigger.Await}
+Picos.Fiber.spawn     may perform {Picos.Fiber.Spawn}
+Picos_std_structured__Control.block
+                      may perform {Picos.Fiber.Current, Picos.Trigger.Await}
+```
+
+### 4.3 Incremental checks
+
+Summaries are cached per module, keyed by `.cmt` digest. 200 modules: cold
+0.18s, warm 0.05s. `bench/perf.sh` compares cached against `--no-cache` output
+byte for byte before reporting a timing.
+
+### 4.4 A negative result, and what it cost
+
+We attempted to reproduce six documented `Effect.Unhandled` crashes by
+analysing the commit before each fix. **Caught 0 of 6, with 0 build failures.**
+
+Three rounds of fixes did not move that number, and each round found a real
+defect:
+
+1. The domain discarded identified effects whenever any call was unresolved.
+2. Alcotest accounted for ~79 of 107 unknown-effect warnings, so every test
+   executable was opaque; module aliases (`module D = Foo`) resolved to
+   nothing.
+3. `Domain.spawn` was modelled as a combinator, attributing spawned effects to
+   the caller — the opposite of the truth.
+4. Eio, being an installed dependency with no `.cmt`, contributed no named
+   effect at all, so nothing could be reported about a call into it.
+
+None was the reason. The reason is verifiable in one command:
+
+```
+$ find bench/_retro/masc/_build -name '*.cmt' | grep -ci eio
+0
+```
+
+The application's Eio-dependent modules never compiled in our environment. The
+corpus never contained the buggy code, so no model could have caught it.
+
+**The transferable finding: a synthetic corpus validates the algorithm, only
+real code validates the model.** All four defects were found by contact with
+real projects. The 1000-program fuzzer found none of them, because generated
+programs call nothing the analyser cannot see.
+
+## 5. Limitations
+
+Stated in full in `docs/LIMITATIONS.md`. The ones that matter:
+
+- **Unsound** for effects performed inside `effc` branch bodies, dynamically
+  built handler records, and closures reaching call sites through data
+  structures (0-CFA is not implemented).
+- **Conditionals** are joined, so an effect on a never-taken branch is still
+  reported: 5.3% of 400 generated branching programs.
+- **Modelling assumptions** about third-party libraries — `Unix`, `Str`,
+  `Ptime`, `Yojson` and others treated as performing no user effects; Alcotest
+  modelled as a combinator; a call into Eio's API modelled as requiring the Eio
+  runtime. Each was added because measurement showed it dominating the blind
+  spots, and a wrong entry hides bugs rather than adding noise.
+- **`try ... with Effect.Unhandled`** is treated as discharging its body. One
+  real codebase does this in over fifty places deliberately.
+- **Whole-program analysis needs the whole program.** §4.4 is the honest
+  demonstration of what that costs.
+
+## 6. Related work
+
+`ocamlexc` (Leroy and Pessaux) is the classic uncaught-*exception* analyser,
+unmaintained since roughly OCaml 3.12 and predating effects. Salto (INRIA)
+targets OCaml 4.14, a version without effects. Jane Street's `handled_effect`
+is an opt-in typed API requiring code to be rewritten. Modal effect types are
+the eventual real fix, with no implementation timeline.
+
+Effects are harder to analyse than exceptions: handlers install dynamically,
+continuations resume, the handled set is decided by runtime handler records
+rather than syntax, and effect identity is scheduler-scoped. Constructor
+re-export makes identity itself non-obvious — `Eio__core.Private.Effects.Fork`
+and `Fiber.Fork` are the same effect under two paths, and neither the path nor
+the uid unifies them.
+
+## 7. Conclusion
+
+`unhandled` reports effects that escape, in four classes, on unmodified OCaml 5
+code, and proves its findings by executing them. It is measured rather than
+asserted: zero false negatives over 1000 generated programs, a published
+false-positive rate, sub-second incremental checks, and a negative result
+reported in full rather than tuned away.
+
+Reproduce everything with `make demo`.
