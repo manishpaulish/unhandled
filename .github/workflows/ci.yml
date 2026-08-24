@@ -25,6 +25,14 @@ jobs:
       # Corpus + scenarios: expectation vs analyser vs actual execution.
       - run: opam exec -- bash test/run_tests.sh
 
+      # Self-host: the analyser must be clean on its own sources. It performs
+      # no effects, so anything other than zero errors is a bug in us.
+      - name: self-host
+        run: |
+          opam exec -- dune build @check
+          opam exec -- ./_build/default/bin/unhandled.exe check _build/default/lib
+          test $? -eq 0
+
       # Differential fuzzing, both modes. Branch-free must stay exact;
       # branching is allowed to over-approximate but never to miss a crash.
       - run: opam exec -- bash test/fuzz/run_fuzz.sh

@@ -1,0 +1,21 @@
+# Ecosystem sweep corpus.
+#
+# Every entry was confirmed to exist with `git ls-remote` at the time of
+# writing. Expect attrition: some will fail to build on a given compiler, and
+# that is recorded rather than hidden (see the `skipped` column in results).
+#
+# Format: <name> <git-url> [subdirectory]
+
+eio               https://github.com/ocaml-multicore/eio.git
+riot              https://github.com/riot-ml/riot.git
+moonpool          https://github.com/c-cube/moonpool.git
+miou              https://github.com/robur-coop/miou.git
+domainslib        https://github.com/ocaml-multicore/domainslib.git
+picos             https://github.com/ocaml-multicore/picos.git
+saturn            https://github.com/ocaml-multicore/saturn.git
+kcas              https://github.com/ocaml-multicore/kcas.git
+eio-trace         https://github.com/ocaml-multicore/eio-trace.git
+multicore-bench   https://github.com/ocaml-multicore/multicore-bench.git
+cohttp            https://github.com/mirage/ocaml-cohttp.git
+ocaml-lsp         https://github.com/ocaml/ocaml-lsp.git
+handled_effect    https://github.com/janestreet/handled_effect.git

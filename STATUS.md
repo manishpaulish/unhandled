@@ -31,6 +31,9 @@ actual runtime behaviour.
 | Effect-constructor alias canonicalisation (rebindings) | done |
 | B3: effects in finalisers, signal handlers, GC alarms, C callbacks (`E004`) | done |
 | Stdlib purity model (removes unknown-effect noise) | done |
+| JSON output (`check --json`) | done |
+| Sweep harness (`bench/sweep.sh`, 13 verified repos) | ready, needs opam |
+| Self-host: 0 errors on own sources, wired into CI | done |
 | Scenario tests (cross-module, contract, witness, B2) | done |
 | Differential fuzzer, runtime as oracle | done |
 | **1000 generated programs: 0 false negatives** | measured |
@@ -51,6 +54,21 @@ actual runtime behaviour.
 
 See `docs/LIMITATIONS.md`. The most important: effects performed inside
 `effc` branch bodies are not yet attributed.
+
+## What I need from you
+
+The sweep is the critical path and it cannot run here: this sandbox has no
+opam access, so real projects cannot be built and no `.cmt` files exist for
+them. `bench/sweep.sh` is written and ready.
+
+```
+dune build
+bash bench/sweep.sh                 # ~13 repos, expect attrition
+REPOS="eio picos" bash bench/sweep.sh    # quick first look
+```
+
+Paste back `bench/results/sweep.csv` and I can triage the findings, drive the
+witness generator over them, and turn the survivors into upstream issues.
 
 ## Environment note
 

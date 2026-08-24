@@ -3,6 +3,7 @@ let usage () =
     "unhandled - static effect-safety checker for OCaml 5\n\n\
      usage:\n\
     \  unhandled check <dir>      analyse .cmt files under <dir>\n\
+    \                             (--json for machine-readable output)\n\
     \  unhandled facts <dir>      dump raw perform/handler facts\n\
     \  unhandled summaries <dir>  print per-function effect summaries\n\
     \  unhandled witness <dir>    generate, compile and RUN a witness per finding\n\
@@ -17,7 +18,9 @@ let () =
   match cmd with
   | "check" ->
       let _, _, findings = Driver.analyse files in
-      print_string (Report.render_all findings);
+      let json = Array.exists (fun a -> a = "--json") Sys.argv in
+      print_string
+        (if json then Report.render_json findings else Report.render_all findings);
       exit (if List.exists (fun f -> match f.Report.f_kind with Report.Escapes _ -> true | _ -> false) findings then 1 else 0)
   | "summaries" ->
       let units, env, _ = Driver.analyse files in
@@ -96,16 +99,24 @@ let () =
   | "contract" ->
       (* Library mode. A library that performs effects is not buggy: its
          handler lives in the application. What matters is that its contract
-         is visible, so callers know what they must handle. *)
+         is visible, so callers know what they must handle.
+
+         Functions whose set is Top are listed separately. Mixing them in
+         would fill the contract with "<unknown>" lines that say nothing; the
+         count still gets reported, because a contract derived mostly from
+         unanalysed calls is worth far less and the reader should know. *)
       let units, env, _ = Driver.analyse files in
+      let unknown = ref 0 in
       List.iter
         (fun (u : Driver.unit_facts) ->
           let mf = u.Driver.uf_facts in
           let rows =
             List.rev mf.Builder.mf_nodes
             |> List.filter_map (fun (n : Builder.node) ->
-                   let s = Solver.lookup env n.Builder.name in
-                   if Effect_set.is_empty s then None else Some (n.Builder.name, s))
+                   match Solver.lookup env n.Builder.name with
+                   | Effect_set.Top -> incr unknown; None
+                   | Effect_set.Known s when Effect_id.Set.is_empty s -> None
+                   | set -> Some (n.Builder.name, set))
           in
           if rows <> [] then (
             Printf.printf "module %s\n" mf.Builder.mf_modname;
@@ -114,7 +125,11 @@ let () =
                 Printf.printf "  %-34s may perform %s\n" name (Effect_set.to_string s))
               rows;
             print_newline ()))
-        units
+        units;
+      if !unknown > 0 then
+        Printf.printf
+          "%d function(s) omitted: their effects depend on calls into code with no .cmt available.\n"
+          !unknown
   | "facts" ->
       List.iter (fun f -> Printf.printf "cmt %s\n" f) files
   | _ -> usage ()
