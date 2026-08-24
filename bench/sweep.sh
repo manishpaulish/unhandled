@@ -27,41 +27,73 @@ echo "repo,status,modules,findings,escapes,unknown,scheduler_mismatch,boundary,s
 run_one () {
   local name="$1" url="$2" sub="${3:-}"
   local dir="$WORK/$name"
+  local log="$OUT/$name.log"
   local t0; t0=$(date +%s)
   local status=ok modules=0 findings=0 esc=0 unk=0 sched=0 bound=0
+  : > "$log"
 
   if [ ! -d "$dir/.git" ]; then
-    git clone -q --depth 1 "$url" "$dir" 2>/dev/null || { status=clone_failed; }
+    git clone -q --depth 1 "$url" "$dir" >>"$log" 2>&1 || status=clone_failed
   fi
+
   if [ "$status" = ok ]; then
-    ( cd "$dir/$sub" && opam install . --deps-only --yes >/dev/null 2>&1 ) || true
-    # @check builds .cmt files without a full build, which is all we need.
-    if ! ( cd "$dir/$sub" && timeout 900 opam exec -- dune build @check -j "$JOBS" >/dev/null 2>&1 ); then
-      status=build_failed
+    # Dependency resolution and build are recorded separately: "could not
+    # install deps" and "code does not compile" are different problems and
+    # lumping them together makes the attrition column useless.
+    echo "=== opam install --deps-only ===" >> "$log"
+    if ! ( cd "$dir/$sub" && opam install . --deps-only --yes --with-test >>"$log" 2>&1 ); then
+      echo "(deps-only with tests failed; retrying without --with-test)" >> "$log"
+      ( cd "$dir/$sub" && opam install . --deps-only --yes >>"$log" 2>&1 ) || status=deps_failed
     fi
   fi
-  if [ "$status" = ok ]; then
+
+  if [ "$status" = ok ] || [ "$status" = deps_failed ]; then
+    echo "=== dune build @check ===" >> "$log"
+    if ( cd "$dir/$sub" && timeout 900 opam exec -- dune build @check -j "$JOBS" >>"$log" 2>&1 ); then
+      status=ok
+    else
+      # A partial build is still worth analysing: many repos fail only in
+      # their test or example stanzas, and the library .cmt files we care
+      # about are already on disk. Report it as partial rather than throwing
+      # the data away.
+      if [ "$(find "$dir/$sub/_build" -name '*.cmt' 2>/dev/null | wc -l | tr -d ' ')" -gt 0 ]; then
+        status=partial
+      else
+        [ "$status" = deps_failed ] || status=build_failed
+      fi
+    fi
+  fi
+
+  if [ "$status" = ok ] || [ "$status" = partial ]; then
     modules=$(find "$dir/$sub/_build" -name '*.cmt' 2>/dev/null | wc -l | tr -d ' ')
     if [ "$modules" -eq 0 ]; then
       status=no_cmt
     else
       local json="$OUT/$name.json"
-      "$UNHANDLED" check "$dir/$sub/_build" --json > "$json" 2>/dev/null
-      read -r findings esc unk sched bound < <(python3 - "$json" <<'PY'
+      "$UNHANDLED" check "$dir/$sub/_build" --json > "$json" 2>>"$log"
+      read -r findings esc unk sched bound < <(python3 - "$json" <<'PY2'
 import json,sys
 try:
     d=json.load(open(sys.argv[1]))["summary"]
     print(d["total"],d["escapes"],d["unknown"],d["scheduler_mismatch"],d["boundary"])
 except Exception:
     print(0,0,0,0,0)
-PY
+PY2
 )
     fi
   fi
+
   local t1; t1=$(date +%s)
   echo "$name,$status,$modules,$findings,$esc,$unk,$sched,$bound,$((t1-t0))" >> "$CSV"
   printf "%-18s %-14s modules=%-5s findings=%-4s (esc=%s sched=%s bound=%s)\n" \
     "$name" "$status" "$modules" "$findings" "$esc" "$sched" "$bound"
+  case "$status" in
+    ok|partial) ;;
+    *)
+      echo "    why: (last lines of $log)"
+      tail -n 12 "$log" | sed 's/^/    | /'
+      ;;
+  esac
 }
 
 while read -r name url sub; do
@@ -75,7 +107,7 @@ echo "results: $CSV"
 python3 - "$CSV" <<'PY'
 import csv,sys
 rows=list(csv.DictReader(open(sys.argv[1])))
-ok=[r for r in rows if r["status"]=="ok"]
+ok=[r for r in rows if r["status"] in ("ok","partial")]
 def s(k): return sum(int(r[k]) for r in ok)
 print(f"analysed {len(ok)}/{len(rows)} repos, {s('modules')} modules")
 print(f"  escapes            {s('escapes')}")
@@ -83,5 +115,8 @@ print(f"  scheduler mismatch {s('scheduler_mismatch')}")
 print(f"  boundary crossings {s('boundary')}")
 print(f"  unknown-effect warnings {s('unknown')}")
 for r in rows:
-    if r["status"]!="ok": print(f"  attrition: {r['repo']} -> {r['status']}")
+    if r["status"] not in ("ok","partial"):
+        print(f"  attrition: {r['repo']} -> {r['status']} (see bench/results/{r['repo']}.log)")
+    elif r["status"]=="partial":
+        print(f"  partial:   {r['repo']} built enough to analyse {r['modules']} modules")
 PY
