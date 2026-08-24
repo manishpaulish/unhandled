@@ -92,6 +92,7 @@ scenario "cross-module escape"      test/xmodule    check    "Svc.Ping escapes u
 scenario "library contract"         test/xmodule    contract "may perform {Svc.Ping}"
 scenario "witness confirms finding" test/xmodule    witness  "1/1 findings confirmed"
 scenario "scheduler mismatch (B2)"  test/schedulers check    "E003"
+scenario "re-exported effect alias"  test/alias     check    "0 error(s)"
 printf -- "------------------------------------------------------------------------------\n"
 [ $sfail -eq 0 ] && echo "scenarios: all passed" || echo "scenarios: $sfail failed"
 [ $((fail + sfail)) -eq 0 ]

@@ -140,3 +140,38 @@ match target () with
 
 This proves the effect reaches an outer boundary unhandled, which is exactly
 the claim being made, and does not depend on the printer.
+
+## 8. Effect constructors can be re-exported, and the alias is what you see
+
+```ocaml
+module Effects = struct
+  type _ Effect.t += Fork = Fiber.Fork    (* a rebinding, not a new effect *)
+end
+```
+
+Both names denote the same runtime effect. The typed tree reports **the path
+that was written**, not the original:
+
+```
+path=Orig.Fork                 uid=Orig.0
+path=Reexport.Effects.Fork     uid=Reexport.0
+```
+
+The uid does not unify them either, so neither the path nor the uid is a
+canonical identity on its own. Eio does exactly this (`Eio__core.Private.
+Effects.Fork = Fiber.Fork`), so a handler written against one name would not
+be seen to discharge a perform written against the other, and every such
+program would be a false positive on the very first real sweep.
+
+The fix is to follow the rebinding. In the typed tree a rebinding appears as
+
+```ocaml
+Tstr_typext { tyext_constructors = [ { ext_id; ext_kind = Text_rebind (path, _) } ] }
+```
+
+`Builder.collect_aliases` records `Module.ext_id -> path` for every unit in a
+pre-pass, and `Effect_id.of_path` resolves through that map transitively. The
+pre-pass has to complete before the first summary is built, because identity
+must already be canonical when the first set is constructed.
+
+Regression fixture: `test/alias/`.

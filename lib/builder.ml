@@ -156,6 +156,37 @@ and bind_value ctx (vb : value_binding) : Eff_expr.t =
       Eff_expr.empty
   | _ -> of_expr ctx vb.vb_expr
 
+(* Pre-pass: record every extension-constructor rebinding so effect identity
+   can be canonicalised before any analysis runs. Deliberately separate from
+   the main build, because the map must be complete for the very first
+   [Effect_id.of_path] call. *)
+let rec collect_aliases ~modname (str : structure) =
+  List.iter
+    (fun item ->
+      match item.str_desc with
+      | Tstr_typext te ->
+          List.iter
+            (fun (ext : extension_constructor) ->
+              match ext.ext_kind with
+              | Text_rebind (target, _) ->
+                  Effect_id.register_alias
+                    ~alias:(modname ^ "." ^ Ident.name ext.ext_id)
+                    ~target:(Path.name target)
+              | Text_decl _ -> ())
+            te.tyext_constructors
+      | Tstr_module mb -> (
+          match mb.mb_expr.mod_desc with
+          | Tmod_structure sub ->
+              let n =
+                match mb.mb_id with
+                | Some id -> modname ^ "." ^ Ident.name id
+                | None -> modname
+              in
+              collect_aliases ~modname:n sub
+          | _ -> ())
+      | _ -> ())
+    str.str_items
+
 let rec of_structure ctx (str : structure) : Eff_expr.t =
   (* Register top-level names first so that mutually recursive references and
      cross-module references resolve to "M.name". *)

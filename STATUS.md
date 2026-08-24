@@ -27,6 +27,8 @@ actual runtime behaviour.
 | Type-directed argument synthesis | done |
 | Library mode: effect contracts (`contract`) | done |
 | Scheduler model table + B2 mismatch detection (`E003`) | done |
+| Eio entry points and effects confirmed against upstream source | done |
+| Effect-constructor alias canonicalisation (rebindings) | done |
 | Scenario tests (cross-module, contract, witness, B2) | done |
 | Differential fuzzer, runtime as oracle | done |
 | **1000 generated programs: 0 false negatives** | measured |
@@ -35,8 +37,8 @@ actual runtime behaviour.
 
 ## Next, in order
 
-1. **Confirm real scheduler paths** in `models/schedulers.conf` against
-   installed Eio/Riot sources. The mechanism is done; the data is provisional.
+1. **Confirm riot/moonpool/miou paths** against their sources. Eio is done and
+   cited in `models/schedulers.conf`; the others are still provisional.
 2. **Scale the fuzzer to 10k seeds** now that both modes are in place, and add
    recursion and multi-module generation.
 3. **Sweep harness** over opam repos; retroactive crash corpus.

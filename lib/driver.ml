@@ -42,7 +42,22 @@ let load file =
       | _ -> None)
   | exception _ -> None
 
+(* Two phases: collect rebinding aliases from every unit, then build. Effect
+   identity must already be canonical when the first summary is constructed. *)
+let collect_aliases files =
+  List.iter
+    (fun file ->
+      match Cmt_format.read_cmt file with
+      | cmt -> (
+          match cmt.Cmt_format.cmt_annots with
+          | Cmt_format.Implementation str ->
+              Builder.collect_aliases ~modname:cmt.Cmt_format.cmt_modname str
+          | _ -> ())
+      | exception _ -> ())
+    files
+
 let analyse files =
+  collect_aliases files;
   let units = List.filter_map load files in
   let nodes = List.concat_map (fun u -> u.uf_facts.Builder.mf_nodes) units in
   let env = Solver.solve nodes in

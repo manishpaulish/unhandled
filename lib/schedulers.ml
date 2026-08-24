@@ -9,9 +9,12 @@
 type t = { name : string; runs : string list; prefixes : string list }
 
 let builtin =
-  [ { name = "eio";
-      runs = [ "Eio_main.run"; "Eio_linux.run"; "Eio_posix.run" ];
-      prefixes = [ "Eio"; "Eio_core" ] };
+  [ (* Confirmed against ocaml-multicore/eio @ d3c8dd9. Prefixes use the
+       mangled library names from the dune stanzas (eio__core, eio_unix). *)
+    { name = "eio";
+      runs = [ "Eio_main.run"; "Eio_linux.run"; "Eio_linux.run_event_loop";
+               "Eio_posix.run" ];
+      prefixes = [ "Eio__core"; "Eio_unix"; "Eio" ] };
     { name = "riot"; runs = [ "Riot.run" ]; prefixes = [ "Riot" ] };
     { name = "moonpool"; runs = [ "Moonpool.run" ]; prefixes = [ "Moonpool" ] };
     { name = "miou"; runs = [ "Miou.run"; "Miou_unix.run" ]; prefixes = [ "Miou" ] };
