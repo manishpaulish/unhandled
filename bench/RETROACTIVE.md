@@ -8,7 +8,7 @@ exists alongside the live sweep.
 Sourced via the GitHub API:
 `https://api.github.com/search/issues?q="Effect.Unhandled"+in:title`
 
-## R1 — jeong-sik/masc#2271 (closed, fixed)
+## R1: jeong-sik/masc#2271 (closed, fixed)
 
 > `Fatal error: exception Stdlib.Effect.Unhandled(Eio__core__Cancel.Get_context)`
 >
@@ -25,7 +25,7 @@ for a machine with opam.
 
 Two implementation bugs were found by reading this report:
 
-1. The effect prints as `Eio__core__Cancel.Get_context` — OCaml's double
+1. The effect prints as `Eio__core__Cancel.Get_context`, OCaml's double
    underscore module mangling, **not** `Eio__core.Cancel.Get_context`. The
    prefix matcher required a `.` separator and would have missed every Eio
    effect in a real project. Fixed in `Schedulers.has_prefix`.
@@ -54,8 +54,8 @@ denominator, and dropping them would inflate the catch rate.
 
 ## Candidates still to reproduce
 
-- masc#1642, #3143, #3172 — the guard pattern itself, useful as negative tests.
-- ocaml/ocaml#14644 — a bytecode heap-corruption bug involving
+- masc#1642, #3143, #3172: the guard pattern itself, useful as negative tests.
+- ocaml/ocaml#14644: a bytecode heap-corruption bug involving
   `Effect.Unhandled`. Not our target class: a runtime defect, not a missing
   handler. Recorded so it is not mistaken for a finding.
 

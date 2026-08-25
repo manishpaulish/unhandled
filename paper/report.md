@@ -1,6 +1,6 @@
 # unhandled: a static effect-safety checker for OCaml 5
 
-**Team Skill Issue — SegFault 2026**
+**Team Skill Issue, SegFault 2026**
 
 ---
 
@@ -14,8 +14,8 @@ OCaml 5's effect handlers are untyped. The manual states it directly, in
 > effects performed by the program are handled.
 
 A missing handler compiles without warnings and raises `Effect.Unhandled` at
-the point of `perform`. Effect handlers power OCaml 5's concurrency stack —
-Eio, Riot, Miou, Moonpool, Domainslib — so the language's flagship feature
+the point of `perform`. Effect handlers power OCaml 5's concurrency stack
+(Eio, Riot, Miou, Moonpool, Domainslib), so the language's flagship feature
 ships with no static guard against its own failure mode. Typed effect systems
 are active research with no landing date.
 
@@ -26,7 +26,7 @@ from the compiler's own typed ASTs, with no annotations and no forked compiler.
 
 **Symbolic effect expressions.** Handler subtraction is scoped to a
 sub-expression, not to a function: in `try_with g () h; perform E`, the handler
-discharges what `g` performs — including effects arriving through calls — but
+discharges what `g` performs, including effects arriving through calls, but
 not the `perform E` that follows. A pass that accumulated effect *sets* could
 not express this, because `g`'s contribution is unknown until `g` is solved. So
 the walk builds a term:
@@ -58,7 +58,7 @@ fixed point.
 | W002 | Effects of unidentifiable origin may escape, with the unresolved callees named |
 
 E004 covers finalisers, signal handlers, GC alarms, memprof callbacks, C
-`caml_callback` frames — all documented by the manual as always fatal — and
+`caml_callback` frames, all documented by the manual as always fatal, and
 **handler-scope transfers**: `Domain.spawn`, `Thread.create`,
 `Eio_unix.run_in_systhread`. A handler lives on one fiber's stack; moving
 execution elsewhere leaves it behind.
@@ -70,7 +70,7 @@ Without this distinction every Eio-based library reads as broken.
 
 **Witnesses.** Each finding is turned into a program that is generated,
 compiled and run. The witness installs a handler for the effect under
-suspicion and reports a positive confirmation when it arrives — it does not
+suspicion and reports a positive confirmation when it arrives. It does not
 parse the crash message, because the runtime prints the effect payload only
 sometimes. A confirmed finding is a true positive by construction.
 
@@ -128,7 +128,7 @@ required a runtime, every program linking it would die before `main`.
 The cause was the `api` rule treating every path under `Eio.` as requiring the
 runtime. `models/schedulers.conf` now carries a `pure` exception list, each
 entry cited to a line in eio's own source, and the list grows only on an
-observed false positive whose purity is then confirmed there — guessing would
+observed false positive whose purity is then confirmed there. Guessing would
 trade a false positive for a false negative, and the false negative is the one
 we claim not to have. `cohttp-eio` went from 3 escapes to 0; `test/eio_pure`
 and `test/eio_api` pin both directions of the rule.
@@ -168,7 +168,7 @@ The second half of the key is not defensive dressing. Keyed on the `.cmt`
 alone, changing the analyser and leaving the sources untouched makes every
 module a cache hit carrying the *previous* build's answer: a false negative
 manufactured by the cache rather than by the analysis, and one that CI cannot
-see because CI always starts cold. We found it by sabotage — breaking
+see because CI always starts cold. We found it by sabotage: breaking
 `Compat.alias_pat` and watching the false positive it should have caused fail
 to appear on a warm run. When the checker cannot identify its own build it
 refuses the cache instead of trusting a key that does not distinguish builds.
@@ -190,7 +190,7 @@ defect:
    executable was opaque; module aliases (`module D = Foo`) resolved to
    nothing.
 3. `Domain.spawn` was modelled as a combinator, attributing spawned effects to
-   the caller — the opposite of the truth.
+   the caller, the opposite of the truth.
 4. Eio, being an installed dependency with no `.cmt`, contributed no named
    effect at all, so nothing could be reported about a call into it.
 
@@ -239,7 +239,7 @@ Stated in full in `docs/LIMITATIONS.md`. The ones that matter:
   structures (0-CFA is not implemented).
 - **Conditionals** are joined, so an effect on a never-taken branch is still
   reported: 5.3% of 400 generated branching programs.
-- **Modelling assumptions** about third-party libraries — `Unix`, `Str`,
+- **Modelling assumptions** about third-party libraries: `Unix`, `Str`,
   `Ptime`, `Yojson` and others treated as performing no user effects; Alcotest
   modelled as a combinator; a call into Eio's API modelled as requiring the Eio
   runtime. Each was added because measurement showed it dominating the blind
@@ -260,7 +260,7 @@ the eventual real fix, with no implementation timeline.
 Effects are harder to analyse than exceptions: handlers install dynamically,
 continuations resume, the handled set is decided by runtime handler records
 rather than syntax, and effect identity is scheduler-scoped. Constructor
-re-export makes identity itself non-obvious — `Eio__core.Private.Effects.Fork`
+re-export makes identity itself non-obvious: `Eio__core.Private.Effects.Fork`
 and `Fiber.Fork` are the same effect under two paths, and neither the path nor
 the uid unifies them.
 

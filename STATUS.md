@@ -55,7 +55,7 @@ the program's actual runtime behaviour.
    provisional and labelled as such.
 2. **Scale the fuzzer to 10k seeds** and add recursion and multi-module
    generation.
-3. Post the tool to `discuss.ocaml.org` — the only remaining route to
+3. Post the tool to `discuss.ocaml.org`, the only remaining route to
    third-party validation, since the retroactive corpus produced none.
 4. 0-CFA behind `--cfa`, for function values that flow through data.
 

@@ -1,7 +1,7 @@
 # Typedtree notes (OCaml 5.3.0)
 
 Empirical findings from `ocamlc -dtypedtree` and the compiler's own `.mli`
-files. **Do not take any of this from memory or from an LLM** — re-derive it
+files. **Do not take any of this from memory or from an LLM.** Re-derive it
 with the probes in `docs/typedtree-notes/` if you move to another compiler
 version. Everything downstream depends on these shapes being right.
 
@@ -27,7 +27,7 @@ The argument of `perform` is normally `Texp_construct (_, cd, _)` where
 `cd.cstr_tag = Types.Cstr_extension (path, _)`.
 
 **Critical:** for an effect declared in the module being analysed, that path is
-a `Pident`, so `Path.name` is the bare constructor name — `"Emit"`, not
+a `Pident`, so `Path.name` is the bare constructor name: `"Emit"`, not
 `"Mymod.Emit"`. Two different modules can each declare `Emit`; those are
 different effects and must not be unified. We therefore qualify bare paths with
 the defining module name (`Effect_id.of_path ~modname`).
@@ -45,7 +45,7 @@ From `typing/typedtree.mli`:
 | Texp_try   of expression * value case list * value case list
 ```
 
-The **third** component is the effect cases. Note `Texp_try` has them too —
+The **third** component is the effect cases. Note `Texp_try` has them too:
 `try e with effect A, k -> ...` is legal and easy to forget.
 
 `Tast_iterator` walks both lists through the same `sub.case`, so an iterator
@@ -55,10 +55,10 @@ We override `expr` and destructure these two nodes explicitly.
 The scrutinee of the match (or the body of the try) is the computation whose
 effects the handler discharges.
 
-A wildcard effect case (`| effect _, k ->`) genuinely handles *every* effect —
+A wildcard effect case (`| effect _, k ->`) genuinely handles *every* effect,
 represented as `handled = All`.
 
-## 4. `effc` handler records — the shape that matters most
+## 4. `effc` handler records: the shape that matters most
 
 Most real code, Eio included, installs handlers through the runtime API rather
 than the 5.3 syntax. Confirmed shape for `Effect.Deep.try_with comp arg h`:
@@ -74,7 +74,7 @@ fn = Texp_function (_, Tfunction_body (
 ```
 
 **The `| _ -> None` arm forwards to the outer handler; it handles nothing.**
-Reading it as a catch-all makes the analyser silently blind — it is the single
+Reading it as a catch-all makes the analyser silently blind. It is the single
 most dangerous mistake in this project. `test/corpus/wildcard_trap.ml` locks
 this behaviour down.
 
@@ -86,7 +86,7 @@ Handler-argument index is 2 for `Deep.try_with`, `Deep.match_with`,
 
 ## 5. Constructor arities that differ from the obvious guess
 
-Verified against 5.3.0 — several of these are the exact places a plausible
+Verified against 5.3.0. Several of these are the exact places a plausible
 guess is wrong:
 
 | Node | Arity |
@@ -97,7 +97,7 @@ guess is wrong:
 | `Texp_function` | `function_param list * function_body` |
 | `Tstr_eval` | **2 args**, not 3 |
 | `Tpat_alias` | **4 args** |
-| `Texp_constraint` | **does not exist** — type constraints are erased |
+| `Texp_constraint` | **does not exist**, type constraints are erased |
 
 `function_body = Tfunction_body of expression | Tfunction_cases of { cases; ... }`.
 
@@ -275,7 +275,7 @@ Three lessons worth keeping:
    selection mechanism (two files, `enabled_if` on `%{ocaml_version}`) was
    right; the assumption that it only had to cover `Data_types` was not.
 2. **Checking arities is not checking types.** `Texp_apply` was audited
-   against the 5.4 signature, found to still take two arguments, and passed —
+   against the 5.4 signature, found to still take two arguments, and passed,
    while the type inside the second argument had changed underneath. Read the
    payload, not the shape of the pattern.
 3. The matrix earned its keep on its first real use. Nothing reachable from a

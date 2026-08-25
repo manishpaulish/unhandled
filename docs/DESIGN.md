@@ -14,8 +14,8 @@ Handler subtraction is scoped to a *sub-expression*, not to a function. In
 let f () = Effect.Deep.try_with g () h; Effect.perform E
 ```
 
-`h` discharges whatever `g` performs — including effects arriving through calls
-inside `g` — but it does not touch the `perform E` that follows.
+`h` discharges whatever `g` performs, including effects arriving through calls
+inside `g`, but it does not touch the `perform E` that follows.
 
 Computing an effect *set* during the walk cannot express that, because the
 contribution of `g` is not known until `g` has been solved. So the walk builds a
@@ -70,11 +70,11 @@ a `Pident`. `Mod_a.Emit` and `Mod_b.Emit` are different effects.
 
 Three tiers, in increasing precision:
 
-1. **Conservative** — an unknown function value is `Top`.
-2. **Effect-polymorphic combinators** (implemented) — `List.iter f xs` performs
+1. **Conservative**: an unknown function value is `Top`.
+2. **Effect-polymorphic combinators** (implemented): `List.iter f xs` performs
    exactly what calling `f` performs. Without this, every idiomatic program
    degrades to `Top` and the tool is useless on real code.
-3. **0-CFA** (planned) — resolve function values that flow through variables and
+3. **0-CFA** (planned): resolve function values that flow through variables and
    data structures.
 
 ## Entry points

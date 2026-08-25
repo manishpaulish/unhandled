@@ -1,6 +1,6 @@
 # unhandled
 
-**A static effect-safety checker for OCaml 5 — the analyzer that proves its own warnings.**
+**A static effect-safety checker for OCaml 5: the analyzer that proves its own warnings.**
 
 OCaml 5's effect handlers are untyped. The manual says so plainly:
 
@@ -273,7 +273,7 @@ often have no `.cmt` for, so they are supplied as data in
 
 `unhandled-lsp` speaks LSP over stdin/stdout and re-checks on open and save.
 Diagnostics carry the blame path as `relatedInformation`, which editors render
-as a clickable chain — the finding *is* the path, not the line.
+as a clickable chain. The finding *is* the path, not the line.
 
 ```
 diagnostic: effect Metrics.Emit escapes unhandled   (E001)
@@ -293,10 +293,10 @@ configuration beyond the binary path and a project with a `dune-project` and a
 
 ## Documentation
 
-- `docs/TYPEDTREE-NOTES.md` — empirical notes on the OCaml 5.3 typed tree. Read
+- `docs/TYPEDTREE-NOTES.md`: empirical notes on the OCaml 5.3 typed tree. Read
   this before touching `lib/effect_syntax.ml`.
-- `docs/DESIGN.md` — the analysis, and why it is shaped this way.
-- `docs/LIMITATIONS.md` — where it is unsound, stated plainly.
+- `docs/DESIGN.md`: the analysis, and why it is shaped this way.
+- `docs/LIMITATIONS.md`: where it is unsound, stated plainly.
 
 ## Licence
 

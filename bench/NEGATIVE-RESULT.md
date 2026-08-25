@@ -8,7 +8,7 @@ useful than the number would have been, so it is recorded here in full.
 
 Six commits from `jeong-sik/masc` that fixed documented `Effect.Unhandled`
 problems. For each, the parent commit is analysed: that is where the bug still
-existed. All six parents **built successfully** — this is not build attrition.
+existed. All six parents **built successfully**. This is not build attrition.
 
     caught 0, not caught 6, build failed 0
 
@@ -29,7 +29,7 @@ masc fell 48 → 39 → 20. The retro number did not move.
 context"*, *"Eio work runs on a bare systhread"*, *"guard Domain_pool_ref
 submits against non-Eio callers"*. None is a handler missing from the call
 graph; each is a **dynamic context transfer**. `Domain.spawn` was even modelled
-as a combinator, attributing spawned effects to the caller — the opposite of
+as a combinator, attributing spawned effects to the caller, the opposite of
 the truth. Fixed as a boundary class, runtime-verified in `test/transfer`. The
 retro number did not move.
 
@@ -41,8 +41,8 @@ fixed that, verified in `test/eio_api` and `test/eio_ok`. The retro number
 
 ## The actual reason
 
-The builds are `partial`. Across every run — sweep and retro, before and after
-each fix — the blindness rankings contain `Unix`, `Alcotest`, `Ptime`,
+The builds are `partial`. Across every run (sweep and retro, before and after
+each fix) the blindness rankings contain `Unix`, `Alcotest`, `Ptime`,
 `Ppxlib`, `Selection`, `Toml_line_editor`, `Fpath`. **They never contain a
 single `Eio.` call.**
 
@@ -77,8 +77,8 @@ row reports one of three outcomes rather than two:
 | outcome | meaning |
 |---|---|
 | `CAUGHT` | a real finding at the parent commit |
-| `MISS` | the fixed file compiled and we said nothing — a result about the detector |
-| `out of scope` | the fixed file never compiled — a result about the corpus |
+| `MISS` | the fixed file compiled and we said nothing: a result about the detector |
+| `out of scope` | the fixed file never compiled: a result about the corpus |
 
 A catch rate is then reported over the scoped rows only, and if no fixed file
 ever compiled the script says the rate is undefined instead of printing zero.
@@ -109,7 +109,7 @@ earlier version it is demonstrable in a terminal.
 ## What this is worth saying
 
 Layers 1 to 4 were all genuine defects, and each was found only by contact with
-real code — the 1000-program fuzzer found none of them, because generated
+real code. The 1000-program fuzzer found none of them, because generated
 programs call nothing the analyser cannot see. That is the transferable lesson:
 **a synthetic corpus validates the algorithm; only real code validates the
 model.**
@@ -128,7 +128,7 @@ wrong here; its evaluation is bounded by what the ecosystem lets us compile.
   The coverage column now makes this a filter rather than a guess: run the
   batch, keep the commits that report `MISS` or `CAUGHT`, discard the ones
   that report `out of scope`, and the surviving denominator is real.
-- Widen the corpus. `bench/discover.sh` derives it from opam — every published
+- Widen the corpus. `bench/discover.sh` derives it from opam: every published
   package depending on `eio`, `picos`, `domainslib`, `riot`, `moonpool` or
   `miou`, resolved to its `dev-repo` and deduplicated. A rate measured over a
   hand-written list is a rate over one person's recall; this one is
