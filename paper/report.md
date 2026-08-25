@@ -141,11 +141,20 @@ them.
 `contract` extracts correct, useful contracts from the same corpus:
 
 ```
-Picos.Trigger.await   may perform {Picos.Trigger.Await}
-Picos.Fiber.spawn     may perform {Picos.Fiber.Spawn}
-Picos_std_structured__Control.block
-                      may perform {Picos.Fiber.Current, Picos.Trigger.Await}
+module Picos
+  Picos.Trigger.await                may perform {Picos.Trigger.Await}
+  Picos.Fiber.spawn                  may perform {Picos.Fiber.Spawn}
+  Picos.Fiber.yield                  may perform {Picos.Fiber.Yield}
+  Picos.Fiber.Maybe.current_and_check_if may perform {Picos.Fiber.Current, ...unknown}
+
+module Picos_std_structured__Run
+  Picos_std_structured__Run.spawn    may perform {Picos.Fiber.Spawn, ...unknown}
 ```
+
+`...unknown` marks a contract that is incomplete at that function because it
+calls into code with no `.cmt`. Printing it is the point: a contract that
+quietly rounded down to a clean-looking set would be worth less than one that
+says where it stops knowing.
 
 ### 4.3 Incremental checks
 
