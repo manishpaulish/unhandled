@@ -60,6 +60,36 @@ mods=$(find "$WORK/$SUB/_build" -name '*.cmt' 2>/dev/null | wc -l | tr -d ' ')
 echo "modules analysed: $mods"
 [ "$mods" -eq 0 ] && { echo "nothing built; see $OUT/$NAME.retro.log"; exit 1; }
 
+# Coverage of the fix.
+#
+# "Not caught" is two very different results wearing one label. If the file the
+# fix touched never compiled, the analyser was never shown the bug and the run
+# says nothing about the detector. If it did compile and we stayed silent, that
+# is a real miss worth investigating. Without this section the first batch was
+# reported as 0 of 6 with no way to tell which kind of zero it was.
+echo
+echo "coverage of the fix"
+printf -- "----------------------------------------------------------------\n"
+covered=0; touched=0
+for f in $(git show --name-only --format= "$FIX" | grep -E '\.ml$' || true); do
+  touched=$((touched+1))
+  base="$(basename "$f" .ml)"
+  if find "$WORK/$SUB/_build" -iname "*${base}.cmt" 2>/dev/null | grep -q .; then
+    printf "  %-56s compiled\n" "$f"; covered=$((covered+1))
+  else
+    printf "  %-56s NOT COMPILED\n" "$f"
+  fi
+done
+if [ "$touched" -eq 0 ]; then
+  echo "  (the fix touched no .ml files: it may be a config or script change)"
+else
+  echo "$covered of $touched file(s) touched by the fix were analysed"
+fi
+[ "$covered" -eq 0 ] && [ "$touched" -gt 0 ] && \
+  echo "  => a 'not caught' below is a corpus gap, not a detector gap"
+printf -- "----------------------------------------------------------------\n"
+echo
+
 "$UNHANDLED" check "$WORK/$SUB/_build" | tee "$OUT/$NAME.retro.txt"
 echo
 echo "Recorded at $OUT/$NAME.retro.txt"

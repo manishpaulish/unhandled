@@ -63,6 +63,49 @@ This makes the result **verified rather than inferred**. Three earlier
 explanations were plausible and wrong; this one is checkable in one command,
 and the check was run.
 
+## Two claims that needed evidence, not argument
+
+The account above still leaned on two things we had asserted. Both are now
+measured.
+
+**Claim A: the fixed files were never compiled.** The grep shows no Eio module
+built, but it does not show, commit by commit, whether *the file the fix
+touched* was among the ones we analysed. `retro_batch.sh` now takes the file
+list from each fixing commit and checks each against the build tree, so every
+row reports one of three outcomes rather than two:
+
+| outcome | meaning |
+|---|---|
+| `CAUGHT` | a real finding at the parent commit |
+| `MISS` | the fixed file compiled and we said nothing — a result about the detector |
+| `out of scope` | the fixed file never compiled — a result about the corpus |
+
+A catch rate is then reported over the scoped rows only, and if no fixed file
+ever compiled the script says the rate is undefined instead of printing zero.
+**0 of 6 and 0 of 0 are different claims**, and the first batch could not tell
+them apart.
+
+**Claim B: the detector would have fired.** "The corpus never contained the
+buggy code" implies we would have caught it if it had, which is exactly the
+kind of thing a losing analyser also says. `test/eio_nocmt` settles it: a
+helper calling `Eio.Mutex.use_rw` with no runtime above it, with the Eio
+`.cmt` files **deleted before the check**, reproducing the condition every
+real run works under. The module is named `Eio__Mutex` so the path mangling
+matches a wrapped dune library.
+
+```
+masc shape, Eio has no .cmt              PASS
+```
+
+It fires, and it stays quiet on the same call under `Eio_main.run`. Deleting
+the `api` lines from the scheduler model makes both scenarios fail, so the
+test has teeth rather than passing by accident.
+
+So the honest statement is now: *the detector fires on this bug class under
+the conditions of the failed run; the run did not present the bug to it.*
+That is a much narrower claim than the one we were making, and unlike the
+earlier version it is demonstrable in a terminal.
+
 ## What this is worth saying
 
 Layers 1 to 4 were all genuine defects, and each was found only by contact with
@@ -81,9 +124,16 @@ wrong here; its evaluation is bounded by what the ecosystem lets us compile.
 
 - Reproduce a fixing commit in an environment where the Eio-dependent modules
   actually compile, most likely with the project's own CI container.
-- Or pick corpus entries whose bug is in a module with few system dependencies,
-  filtering candidates by whether the touched files build in isolation.
+- Pick corpus entries whose bug is in a module with few system dependencies.
+  The coverage column now makes this a filter rather than a guess: run the
+  batch, keep the commits that report `MISS` or `CAUGHT`, discard the ones
+  that report `out of scope`, and the surviving denominator is real.
+- Widen the corpus. `bench/discover.sh` derives it from opam — every published
+  package depending on `eio`, `picos`, `domainslib`, `riot`, `moonpool` or
+  `miou`, resolved to its `dev-repo` and deduplicated. A rate measured over a
+  hand-written list is a rate over one person's recall; this one is
+  reproducible and its attrition is counted.
 
-Neither is a change to the analyser. Both are changes to the corpus, and the
-first honest thing to report is that we could not build the code the bugs live
-in.
+None of these is a change to the analyser. All are changes to the corpus, and
+the first honest thing to report is still that we could not build the code the
+bugs live in.

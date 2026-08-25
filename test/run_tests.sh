@@ -72,13 +72,16 @@ echo
 echo "scenarios"
 printf -- "------------------------------------------------------------------------------\n"
 sfail=0
-scenario () { # name dir cmd expected-substring
-  local name="$1" dir="$2" cmd="$3" want="$4"
+scenario () { # name dir cmd expected-substring [cmts-to-delete]
+  local name="$1" dir="$2" cmd="$3" want="$4" drop="${5:-}"
   # Compile in dependency order. Repeated passes are simpler and more robust
   # here than reimplementing ocamldep: a module compiles once its deps exist.
   ( cd "$ROOT/$dir" && for _ in 1 2 3; do
       for f in *.ml; do $OCAMLC -bin-annot -c "$f" >/dev/null 2>&1; done
     done )
+  # Delete named .cmt files to simulate a dependency installed from opam, which
+  # ships no typed trees. This is the condition every real sweep runs under.
+  [ -n "$drop" ] && ( cd "$ROOT/$dir" && rm -f $drop )
   # Start cold. A scenario that reads the previous run's cache is testing the
   # cache, not the analyser, and would keep passing after the analyser broke.
   rm -rf "$ROOT/$dir/.unhandled-cache"
@@ -104,8 +107,35 @@ scenario "call via module alias"      test/modalias  check    "Worker.Job escape
 scenario "handler-scope transfer"     test/transfer  check    "a new domain"
 scenario "Eio API without a runtime"  test/eio_api   check    "Suspend escapes unhandled"
 scenario "Eio API under Eio_main.run" test/eio_ok    check    "0 error(s)"
+# The retroactive condition: Eio present as a dependency, with no typed trees.
+scenario "masc shape, Eio has no .cmt" test/eio_nocmt check "Suspend escapes unhandled" \
+         "eio.cmt eio__Mutex.cmt"
 printf -- "------------------------------------------------------------------------------\n"
 [ $sfail -eq 0 ] && echo "scenarios: all passed" || echo "scenarios: $sfail failed"
+
+# ------------------------------------------------------------------ models
+# Every scheduler finding rests on the model table, so the table is an input
+# to the result and has to be inspectable and honest. models/schedulers.conf
+# documented it in four other files while the tool read only the compiled-in
+# copy; the two are now compared here so they cannot drift apart again.
+echo
+echo "scheduler models"
+printf -- "------------------------------------------------------------------------------\n"
+builtin_tbl="$($RUN "$UNHANDLED" models 2>&1)"
+file_tbl="$($RUN "$UNHANDLED" models --models "$ROOT/models/schedulers.conf" 2>&1)"
+if [ "$builtin_tbl" = "$file_tbl" ]; then
+  printf "%-40s PASS\n" "shipped table matches the built-in one"
+else
+  printf "%-40s FAIL\n" "shipped table matches the built-in one"
+  diff <(echo "$builtin_tbl") <(echo "$file_tbl") | head -20
+  sfail=$((sfail+1))
+fi
+if echo "$builtin_tbl" | grep -q "api       Eio\."; then
+  printf "%-40s PASS\n" "table is printable and names the Eio API"
+else
+  printf "%-40s FAIL\n" "table is printable and names the Eio API"; sfail=$((sfail+1))
+fi
+printf -- "------------------------------------------------------------------------------\n"
 
 # ------------------------------------------------------------------- cache
 # The incremental cache is the one component whose failures are invisible to

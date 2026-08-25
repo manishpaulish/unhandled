@@ -8,13 +8,36 @@ let usage () =
     \  unhandled summaries <dir>  print per-function effect summaries\n\
     \  unhandled witness <dir>    generate, compile and RUN a witness per finding\n\
     \  unhandled contract <dir>   library mode: the effect contract of each function\n\
+    \  unhandled models           print the scheduler model table in force\n\
     \n\
-    \  --no-cache                 ignore and do not write the summary cache\n";
+    \  --no-cache                 ignore and do not write the summary cache\n\
+    \  --models <file>            replace the built-in scheduler table\n";
   exit 2
 
+(* The scheduler table is data, not analysis: it says which entry point installs
+   handlers for which effects. Shipping it as a file the tool never reads would
+   make models/schedulers.conf decorative, so it is loadable here, and
+   [unhandled models] prints whichever table is actually in force. *)
+let load_models () =
+  let rec find i =
+    if i + 1 >= Array.length Sys.argv then ()
+    else if Sys.argv.(i) = "--models" then Schedulers.load_file Sys.argv.(i + 1)
+    else find (i + 1)
+  in
+  find 1;
+  match Sys.getenv_opt "UNHANDLED_MODELS" with
+  | Some p when Array.for_all (fun a -> a <> "--models") Sys.argv ->
+      Schedulers.load_file p
+  | _ -> ()
+
 let () =
+  if Array.length Sys.argv >= 2 && Sys.argv.(1) = "models" then (
+    load_models ();
+    print_string (Schedulers.describe ());
+    exit 0);
   if Array.length Sys.argv < 3 then usage ();
   let cmd = Sys.argv.(1) and dir = Sys.argv.(2) in
+  load_models ();
   (* --no-cache exists so the cache can be measured against, and so a
      suspected cache bug can be ruled in or out in one run. *)
   if Array.exists (fun a -> a = "--no-cache") Sys.argv then

@@ -40,6 +40,25 @@ let builtin =
       apis = []; requires = "Sched_b.Tick" } ]
 
 let table = ref builtin
+let all () = !table
+
+(* Printed by [unhandled models]. The table is an assumption about the world,
+   not something derived from the code under analysis, so it has to be
+   inspectable: a reader who disagrees with a finding should be able to see
+   the premise it rests on without reading our source. *)
+let describe () =
+  let b = Buffer.create 512 in
+  List.iter
+    (fun s ->
+      Buffer.add_string b (Printf.sprintf "scheduler %s\n" s.name);
+      List.iter (fun r -> Buffer.add_string b (Printf.sprintf "  run       %s\n" r)) s.runs;
+      List.iter (fun p -> Buffer.add_string b (Printf.sprintf "  prefix    %s\n" p)) s.prefixes;
+      List.iter (fun a -> Buffer.add_string b (Printf.sprintf "  api       %s\n" a)) s.apis;
+      if s.requires <> "" then
+        Buffer.add_string b (Printf.sprintf "  requires  %s\n" s.requires);
+      Buffer.add_char b '\n')
+    !table;
+  Buffer.contents b
 
 (* Optional override file, same data in a line-oriented format so it stays
    reviewable in a pull request. *)
@@ -47,7 +66,18 @@ let load_file path =
   if Sys.file_exists path then (
     let ic = open_in path in
     let acc = ref [] and cur = ref None in
-    let flush () = match !cur with Some s -> acc := s :: !acc | None -> () in
+    (* Entries are accumulated by prepending, so put every list back into file
+       order on the way out. Otherwise a table loaded from disk and the same
+       table compiled in would print differently and could not be compared. *)
+    let flush () =
+      match !cur with
+      | Some s ->
+          acc :=
+            { s with runs = List.rev s.runs; prefixes = List.rev s.prefixes;
+                     apis = List.rev s.apis }
+            :: !acc
+      | None -> ()
+    in
     (try
        while true do
          let line = String.trim (input_line ic) in
@@ -69,7 +99,7 @@ let load_file path =
      with End_of_file -> ());
     flush ();
     close_in ic;
-    if !acc <> [] then table := !acc)
+    if !acc <> [] then table := List.rev !acc)
 
 (* Which scheduler does this call start, if any? *)
 let scheduler_of_run path =

@@ -8,6 +8,7 @@
 #   bash bench/sweep.sh                 # all repos in bench/repos.txt
 #   REPOS="eio picos" bash bench/sweep.sh
 #   JOBS=4 bash bench/sweep.sh
+#   REPOS_FILE=bench/repos.generated.txt bash bench/sweep.sh   # see discover.sh
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="${WORK:-$ROOT/bench/_work}"
@@ -116,7 +117,7 @@ while read -r name url sub; do
   case "$name" in ''|\#*) continue;; esac
   if [ -n "${REPOS:-}" ] && ! echo " $REPOS " | grep -q " $name "; then continue; fi
   run_one "$name" "$url" "${sub:-}"
-done < "$ROOT/bench/repos.txt"
+done < "${REPOS_FILE:-$ROOT/bench/repos.txt}"
 
 echo
 echo "results: $CSV"
