@@ -26,6 +26,18 @@ type t = {
      purity is confirmed in the scheduler's own source. Guessing here trades a
      false positive for a false negative, which is the worse of the two. *)
   pure : string list;
+  (* Module prefixes that ARE this scheduler's implementation.
+     The api rule models how a *client* uses the library: "you called
+     Eio.Mutex.use_rw, so you need an Eio runtime". Applying it to eio's own
+     source is a category error -- eio does not require an Eio runtime in
+     order to define itself, and its modules build resources at
+     initialisation time as a matter of course. Every one of the 21 findings
+     in the eio repository came from this, including a B3 boundary report that
+     chained off the same synthetic effect.
+
+     This suppresses the *model*, not the analysis: a real Effect.perform
+     inside eio is still read from the typed tree and still reported. *)
+  self : string list;
   requires : string;  (* representative effect such a call performs *)
 }
 
@@ -45,20 +57,30 @@ let builtin =
            lib_eio/stream.mli  create allocates a queue; only add and take
                                block. take_nonblocking, length and is_empty
                                are documented as not waiting. *)
-      pure = [ "Eio.Flow.Pi."; "Eio.Resource.handler"; "Eio.Stream.create";
+      (* "*" means "contains". Pi is eio's documented Provider Interface
+         convention, used in flow, file, fs, time, process, domain_manager and
+         eio_unix; every Pi function has the shape
+           (module X with type t = 't) -> ('t, ty) Resource.handler
+         so it builds a vtable and cannot suspend. *)
+      pure = [ "*.Pi."; "Eio.Resource.handler"; "Eio.Stream.create";
                "Eio.Stream.length"; "Eio.Stream.is_empty";
-               "Eio.Stream.take_nonblocking" ];
+               "Eio.Stream.take_nonblocking"; "Eio.Condition.create" ];
+      self = [ "Eio"; "Eio_core"; "Eio_unix"; "Eio_posix"; "Eio_linux";
+               "Eio_main"; "Eio_mock"; "Eio_runtime_events" ];
       requires = "Eio__core.Suspend.Suspend" };
     { name = "riot"; runs = [ "Riot.run" ]; prefixes = [ "Riot" ];
-      apis = [ "Riot." ]; pure = []; requires = "Riot.Effects.Receive" };
+      apis = [ "Riot." ]; pure = []; self = [ "Riot" ];
+      requires = "Riot.Effects.Receive" };
     { name = "moonpool"; runs = [ "Moonpool.run" ]; prefixes = [ "Moonpool" ];
-      apis = []; pure = []; requires = "Moonpool.Effects.Suspend" };
+      apis = []; pure = []; self = [ "Moonpool" ];
+      requires = "Moonpool.Effects.Suspend" };
     { name = "miou"; runs = [ "Miou.run"; "Miou_unix.run" ]; prefixes = [ "Miou" ];
-      apis = []; pure = []; requires = "Miou.Effects.Suspend" };
+      apis = []; pure = []; self = [ "Miou"; "Miou_unix" ];
+      requires = "Miou.Effects.Suspend" };
     { name = "mock_a"; runs = [ "Sched_a.run" ]; prefixes = [ "Sched_a" ];
-      apis = []; pure = []; requires = "Sched_a.Yield" };
+      apis = []; pure = []; self = [ "Sched_a" ]; requires = "Sched_a.Yield" };
     { name = "mock_b"; runs = [ "Sched_b.run" ]; prefixes = [ "Sched_b" ];
-      apis = []; pure = []; requires = "Sched_b.Tick" } ]
+      apis = []; pure = []; self = [ "Sched_b" ]; requires = "Sched_b.Tick" } ]
 
 let table = ref builtin
 let all () = !table
@@ -76,6 +98,7 @@ let describe () =
       List.iter (fun p -> Buffer.add_string b (Printf.sprintf "  prefix    %s\n" p)) s.prefixes;
       List.iter (fun a -> Buffer.add_string b (Printf.sprintf "  api       %s\n" a)) s.apis;
       List.iter (fun p -> Buffer.add_string b (Printf.sprintf "  pure      %s\n" p)) s.pure;
+      List.iter (fun m -> Buffer.add_string b (Printf.sprintf "  self      %s\n" m)) s.self;
       if s.requires <> "" then
         Buffer.add_string b (Printf.sprintf "  requires  %s\n" s.requires);
       Buffer.add_char b '\n')
@@ -96,7 +119,8 @@ let load_file path =
       | Some s ->
           acc :=
             { s with runs = List.rev s.runs; prefixes = List.rev s.prefixes;
-                     apis = List.rev s.apis; pure = List.rev s.pure }
+                     apis = List.rev s.apis; pure = List.rev s.pure;
+                     self = List.rev s.self }
             :: !acc
       | None -> ()
     in
@@ -111,11 +135,12 @@ let load_file path =
                let key = String.sub line 0 i in
                let v = String.trim (String.sub line i (String.length line - i)) in
                (match key with
-                | "scheduler" -> flush (); cur := Some { name = v; runs = []; prefixes = []; apis = []; pure = []; requires = "" }
+                | "scheduler" -> flush (); cur := Some { name = v; runs = []; prefixes = []; apis = []; pure = []; self = []; requires = "" }
                 | "run" -> (match !cur with Some s -> cur := Some { s with runs = v :: s.runs } | None -> ())
                 | "prefix" -> (match !cur with Some s -> cur := Some { s with prefixes = v :: s.prefixes } | None -> ())
                 | "api" -> (match !cur with Some s -> cur := Some { s with apis = v :: s.apis } | None -> ())
                 | "pure" -> (match !cur with Some s -> cur := Some { s with pure = v :: s.pure } | None -> ())
+                | "self" -> (match !cur with Some s -> cur := Some { s with self = v :: s.self } | None -> ())
                 | "requires" -> (match !cur with Some s -> cur := Some { s with requires = v } | None -> ())
                 | _ -> ())
        done
@@ -152,14 +177,38 @@ let has_prefix id p =
 (* Does calling this path require a scheduler runtime? Returns the effect such
    a call performs, so an unresolved dependency still contributes a *named*
    effect rather than an anonymous unknown. *)
-let api_requirement path =
+(* A [pure] entry beginning with '*' matches anywhere in the path rather than
+   at the start, which is how the Pi convention is expressed. *)
+let matches_pure pat path =
+  if String.length pat > 0 && pat.[0] = '*' then (
+    let needle = String.sub pat 1 (String.length pat - 1) in
+    let n = String.length needle and h = String.length path in
+    let rec go i = i + n <= h && (String.sub path i n = needle || go (i + 1)) in
+    n > 0 && go 0)
+  else starts_with pat path
+
+(* Is [modname] part of this scheduler's own implementation? Exact match, or a
+   dune-wrapped submodule (Eio_posix__Process). Deliberately NOT a bare prefix
+   test: that would make Eio swallow Eio_ssl, a third-party library, and
+   silence findings we want. *)
+let is_self s modname =
+  List.exists
+    (fun p ->
+      String.equal modname p
+      || starts_with (p ^ "__") modname)
+    s.self
+
+let api_requirement ~modname path =
   List.find_map
     (fun s ->
       if s.requires <> "" && List.exists (fun a -> starts_with a path) s.apis
          && not (List.mem path s.runs)
          (* A constructor or vtable builder is under the same prefix as the
             operations but cannot suspend, so it does not imply a runtime. *)
-         && not (List.exists (fun p -> starts_with p path) s.pure)
+         && not (List.exists (fun p -> matches_pure p path) s.pure)
+         (* The api rule describes client usage. eio does not need an Eio
+            runtime to define itself. *)
+         && not (is_self s modname)
       then Some (s.name, s.requires)
       else None)
     !table

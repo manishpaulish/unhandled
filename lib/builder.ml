@@ -201,8 +201,10 @@ and of_apply ctx e f args =
   (* Calling a scheduler's API requires its runtime, whether or not we have
      source for it. *)
   | Texp_ident (p, _, _)
-    when Schedulers.api_requirement (Path.name p) <> None ->
-      let _, eff = Option.get (Schedulers.api_requirement (Path.name p)) in
+    when Schedulers.api_requirement ~modname:ctx.modname (Path.name p) <> None ->
+      let _, eff =
+        Option.get (Schedulers.api_requirement ~modname:ctx.modname (Path.name p))
+      in
       Eff_expr.Join
         (Eff_expr.Perform (Effect_id.of_string eff, e.exp_loc) :: arg_effects)
   | Texp_ident (p, _, _) -> (
