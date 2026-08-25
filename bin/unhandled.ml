@@ -149,6 +149,21 @@ let () =
                    else if Effect_set.has_unknown set then (incr unknown; None)
                    else None)
           in
+          (* One line per function. A contract is a statement about a name, so
+             printing that name three times because it has three binding sites
+             in the tree is noise, and it is the first thing a reader stops
+             trusting. Same name and same set collapses to one row; the same
+             name with a *different* set is kept, because that is a real
+             disagreement worth seeing rather than hiding. *)
+          let rows =
+            let seen = Hashtbl.create 64 in
+            List.filter
+              (fun (name, s) ->
+                let key = name ^ " => " ^ Effect_set.to_string s in
+                if Hashtbl.mem seen key then false
+                else (Hashtbl.add seen key (); true))
+              rows
+          in
           if rows <> [] then (
             Printf.printf "module %s\n" mf.Builder.mf_modname;
             List.iter
