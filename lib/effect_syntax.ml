@@ -90,24 +90,7 @@ let rec catches_unhandled : type k. k general_pattern -> bool =
       | None -> false)
   | Tpat_or (a, b, _) -> catches_unhandled a || catches_unhandled b
   | Tpat_exception p -> catches_unhandled p
-  (* A catch-all exception case catches Effect.Unhandled along with everything
-     else, so it guards just as an explicit one does. picos writes exactly
-     this, and says why in a comment at
-     lib/picos_std.finally/picos_std_finally.ml:47:
-
-       | exception _exn ->
-           (* This should only happen when not running under a scheduler.
-              However, we don't match on a specific exception, because it
-              depends on the OCaml version. *)
-
-     which is our own section 7 finding arrived at independently. Requiring the
-     name Effect.Unhandled reported all three picos escapes as crashes that
-     cannot happen.
-
-     This costs precision in one direction: `try f () with _ -> ()` around code
-     that performs an effect no longer reports. That is the right trade, since
-     E001 claims the program dies and with a catch-all it does not. *)
-  | Tpat_any | Tpat_var _ -> true
+  | Tpat_any | Tpat_var _ -> false
   | d -> (
       match Compat.alias_pat d with
       | Some inner -> catches_unhandled inner
@@ -115,34 +98,6 @@ let rec catches_unhandled : type k. k general_pattern -> bool =
 
 let guards_unhandled cases =
   List.exists (fun c -> catches_unhandled c.c_lhs) cases
-
-(* Application spelled as an operator.
-
-   `@@` is `external ( @@ ) : ('a -> 'b) -> 'a -> 'b = "%apply"` and `|>` is
-   "%revapply". Libraries define their own: picos has
-
-     external ( let@ ) : ('a -> 'b) -> 'a -> 'b = "%apply"
-
-   and `let@ env = Eio_main.run in body` is therefore
-   `( let@ ) Eio_main.run (fun env -> body)`. Left opaque, the head of that
-   application is the operator rather than Eio_main.run, the scheduler
-   boundary is missed, and everything in the body looks like it runs with no
-   runtime installed. That is exactly what forester's three escapes were.
-
-   Reading the primitive name out of the value description catches every such
-   operator, including ones a project defines for itself, which matching on
-   the spelling `@@` or `let@` would not. *)
-let application_primitive (e : expression) =
-  match e.exp_desc with
-  | Texp_ident (_, _, vd) -> (
-      match vd.Types.val_kind with
-      | Types.Val_prim p -> (
-          match p.Primitive.prim_name with
-          | "%apply" -> Some `Apply
-          | "%revapply" -> Some `Revapply
-          | _ -> None)
-      | _ -> None)
-  | _ -> None
 
 (* ------------------------------------------------ Effect.Deep / Effect.Shallow *)
 

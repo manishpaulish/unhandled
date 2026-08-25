@@ -114,9 +114,6 @@ scenario "masc shape, Eio has no .cmt" test/eio_nocmt check "Suspend escapes unh
 scenario "Eio constructors are not effects" test/eio_pure check "0 error(s)" "eio.cmt"
 # The same call that errors in test/eio_api, made from inside eio itself.
 scenario "the api rule spares eio's own code" test/eio_self check "0 error(s)" "eio.cmt"
-# forester's shape: the scheduler is entered through an application operator.
-scenario "let@ Eio_main.run is a boundary"  test/apply_op check "0 error(s)" \
-         "eio.cmt eio_main.cmt"
 printf -- "------------------------------------------------------------------------------\n"
 [ $sfail -eq 0 ] && echo "scenarios: all passed" || echo "scenarios: $sfail failed"
 

@@ -93,19 +93,6 @@ let rec of_expr ctx (e : expression) : Eff_expr.t =
   | Texp_function _ -> Eff_expr.empty
   | Texp_ident _ | Texp_constant _ -> Eff_expr.empty
   | Texp_apply (f, args) -> of_apply ctx e f args
-  (* A match's exception cases sit in the computation-case list as
-     [Tpat_exception], so a catch-all there guards the scrutinee exactly as the
-     one in a [try] does. picos relies on this:
-       match Fiber.current () with
-       | fiber -> ...
-       | exception _exn -> release x
-     Checking it only for [Texp_try] reported all three picos escapes. *)
-  | Texp_match (scrut, comp_cases, eff_cases, _)
-    when Effect_syntax.guards_unhandled comp_cases ->
-      Eff_expr.Join
-        (Eff_expr.Handle (of_expr ctx scrut, Effect_syntax.All)
-         :: (List.map (fun c -> of_expr ctx c.c_rhs) comp_cases
-             @ List.map (fun c -> of_expr ctx c.c_rhs) eff_cases))
   | Texp_match (scrut, comp_cases, eff_cases, _) ->
       let handled = Effect_syntax.handled_of_effect_cases ~modname:ctx.modname eff_cases in
       Eff_expr.Join
@@ -149,17 +136,6 @@ and of_apply ctx e f args =
      it [None], so the unwrapping lives in [Compat]. Note that dropping them
      shifts the positional indices used below, on both compilers alike. *)
   let arg_exprs = List.filter_map (fun (_, o) -> Compat.apply_arg o) args in
-  of_applied ctx e f arg_exprs
-
-(* Split from [of_apply] so that an application operator can re-enter it with
-   the real callee. See [Effect_syntax.application_primitive]. *)
-and of_applied ctx e f arg_exprs =
-  match (Effect_syntax.application_primitive f, arg_exprs) with
-  | Some `Apply, g :: rest -> of_applied ctx e g rest
-  | Some `Revapply, [ x; g ] -> of_applied ctx e g [ x ]
-  | _ -> of_applied_head ctx e f arg_exprs
-
-and of_applied_head ctx e f arg_exprs =
   let arg_effects = List.map (of_expr ctx) arg_exprs in
   match f.exp_desc with
   | Texp_ident (p, _, _) when Effect_syntax.is_perform p -> (

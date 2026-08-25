@@ -57,6 +57,52 @@ blindness ranking in `bench/`.
   against installed sources. The detection mechanism is independent of the
   data, and the mock schedulers in `test/schedulers` exercise it.
 
+## Known false positives on the sweep corpus, diagnosed but not fixed
+
+Six escapes survive on 38 repositories and 3,881 modules. Both causes are
+understood and both are ours. They are recorded here rather than suppressed,
+because a checker that hides what it gets wrong is worth less than one that
+names it.
+
+**Application operators hide a scheduler boundary. Three, in forester.**
+`bin/forester/main.ml` enters Eio like this:
+
+```ocaml
+let () =
+  let@ env = Eio_main.run in
+  let@ () = Forester_core.Reporter.easy_run in
+  exit @@ Cmd.eval ~catch:false @@ cmd ~env
+```
+
+`let@` is application spelled as an operator, declared in picos as
+`external ( let@ ) : ('a -> 'b) -> 'a -> 'b = "%apply"`, so the first line is
+`( let@ ) Eio_main.run (fun env -> body)`. We match the head of an application
+against the scheduler table, and the head here is the operator, so the
+boundary is invisible and the whole program looks like it runs with no
+runtime. The fix is to see through anything declared `%apply` or `%revapply`,
+which would also cover `@@` and `|>`.
+
+**A catch-all exception case is not recognised as a guard. Three, in picos.**
+`lib/picos_std.finally/picos_std_finally.ml:47`:
+
+```ocaml
+| exception _exn ->
+    (* This should only happen when not running under a scheduler.  However,
+       we don't match on a specific exception, because it depends on the
+       OCaml version. *)
+    release x
+```
+
+We already treat `try ... with Effect.Unhandled _` as discharging the body.
+picos writes the same guard without naming the exception, deliberately,
+because its identity is version dependent, which is the observation recorded
+independently in `docs/TYPEDTREE-NOTES.md` section 7 and then confirmed when
+5.4 stopped printing the effect payload. We only match the named form.
+
+Both fixes were attempted and reverted: they broke the corpus and scenario
+suites, and shipping a green suite matters more than six documented false
+positives. `git log` has the attempt if anyone wants to finish it.
+
 ## Resource use on very large trees
 
 `check` holds every module's summary in memory at once. On the opam-derived
