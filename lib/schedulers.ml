@@ -64,7 +64,13 @@ let builtin =
          so it builds a vtable and cannot suspend. *)
       pure = [ "*.Pi."; "Eio.Resource.handler"; "Eio.Stream.create";
                "Eio.Stream.length"; "Eio.Stream.is_empty";
-               "Eio.Stream.take_nonblocking"; "Eio.Condition.create" ];
+               "Eio.Stream.take_nonblocking"; "Eio.Condition.create";
+               (* parse_string_exn is defined over of_string, not of_flow:
+                  there is no source to block on. eio's own nounix test calls
+                  it at module initialisation under
+                    (forbidden_libraries unix) (libraries eio)
+                  with no scheduler linked at all, and passes. *)
+               "Eio.Buf_read.parse_string" ];
       self = [ "Eio"; "Eio_core"; "Eio_unix"; "Eio_posix"; "Eio_linux";
                "Eio_main"; "Eio_mock"; "Eio_runtime_events" ];
       requires = "Eio__core.Suspend.Suspend" };
