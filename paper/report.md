@@ -96,10 +96,49 @@ separately so known imprecision cannot bury a real defect.
 
 ### 4.2 Production code
 
-316 modules across eio, picos, domainslib and one Eio application were analysed
-end to end. Zero escapes — the expected answer for a corpus of libraries, whose
-handlers live in their callers. `contract` extracts correct, useful contracts
-from that same code:
+The corpus is derived from opam rather than written by hand: every published
+package depending on `eio`, `eio_main`, `picos`, `domainslib`, `riot`,
+`moonpool` or `miou`, resolved to its `dev-repo` and deduplicated by URL
+(`bench/discover.sh`). 114 packages, 5 dropped for having no usable
+`dev-repo`, **85 repositories**. An earlier hand-written list of 4 was not a
+search, and a finding rate measured over it would have been a finding rate
+over one person's recall.
+
+#### The first three escapes were ours, not theirs
+
+The first escapes this tool ever reported on third-party code were three in
+`cohttp-eio`, and triaging them against the upstream source showed all three
+were false positives:
+
+```
+cohttp-eio/src/body.ml:20    let of_string =
+                               let ops = Eio.Flow.Pi.source (module S) in ...
+cohttp-eio/src/utils.ml:44   let flow_of_reader =
+                               let handler = Eio.Flow.Pi.source (module R) in ...
+cohttp-eio/tests/test_forward_proxy.ml:9    Eio.Stream.create 1
+```
+
+The analyser was right about *when*: those calls really do run at module
+initialisation. It was wrong about *what*. `Pi.source` builds a
+`Resource.handler` from a first-class module, `Stream.create` allocates a
+queue, and neither can suspend. The argument that settles it needs no source
+reading: `cohttp-eio` is widely deployed, so if its module initialisation
+required a runtime, every program linking it would die before `main`.
+
+The cause was the `api` rule treating every path under `Eio.` as requiring the
+runtime. `models/schedulers.conf` now carries a `pure` exception list, each
+entry cited to a line in eio's own source, and the list grows only on an
+observed false positive whose purity is then confirmed there — guessing would
+trade a false positive for a false negative, and the false negative is the one
+we claim not to have. `cohttp-eio` went from 3 escapes to 0; `test/eio_pure`
+and `test/eio_api` pin both directions of the rule.
+
+We report this because it is the honest shape of the result. A tool whose
+first real-world findings are all its own fault, found by reading the code it
+accused, is worth more than one that reports three numbers and never checks
+them.
+
+`contract` extracts correct, useful contracts from the same corpus:
 
 ```
 Picos.Trigger.await   may perform {Picos.Trigger.Await}

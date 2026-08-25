@@ -57,6 +57,21 @@ blindness ranking in `bench/`.
   against installed sources. The detection mechanism is independent of the
   data, and the mock schedulers in `test/schedulers` exercise it.
 
+## Resource use on very large trees
+
+`check` holds every module's summary in memory at once. On the opam-derived
+sweep this was fine for 2093 modules (`awso-eio`) but the process was
+SIGKILLed by the OS on one repository, `dns-client-miou-unix`:
+
+```
+bench/sweep.sh: line 54: 14402 Killed: 9   "$UNHANDLED" check .../_build --json
+```
+
+That is our process dying, not the analysis being wrong, and it is a real
+limit rather than a hypothetical one. The sweep records it as attrition. Not
+yet diagnosed: whether it is total footprint or a pathological case in the
+fixpoint. Anyone reproducing our numbers should expect it.
+
 ## Not yet implemented
 
 - 0-CFA for function values that flow through variables and data structures.
