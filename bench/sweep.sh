@@ -28,8 +28,24 @@ CSV="$OUT/sweep.csv"
 # repo already present in the CSV is skipped on the next run. FORCE=1 redoes
 # everything, and deleting a single line redoes that one repo.
 if [ ! -s "$CSV" ] || [ "${FORCE:-0}" = 1 ]; then
-  echo "repo,status,modules,findings,escapes,unknown,scheduler_mismatch,boundary,seconds" > "$CSV"
+  echo "repo,status,modules,findings,escapes,unknown,scheduler_mismatch,boundary,seconds,analyser" > "$CSV"
 fi
+
+# Which build of the analyser produced each row.
+#
+# A sweep runs for hours, almost all of it in opam and dune, while the analysis
+# itself takes seconds. So it is normal to fix the analyser and rebuild it part
+# way through, and then the rows written before the rebuild came from a
+# different program than the rows written after. That happened here: a sweep
+# recorded eio_linux with 20 escapes while the fix that removed all 20 was
+# being compiled in another terminal.
+#
+# A findings table whose rows come from different builds is not a measurement.
+# Stamping every row makes the mixture visible, and bench/recheck.sh
+# regenerates them all against one binary without rebuilding any repository.
+ANALYSER_ID="$( (md5 -q "$UNHANDLED" 2>/dev/null \
+                || md5sum "$UNHANDLED" 2>/dev/null | cut -d' ' -f1) | cut -c1-12 )"
+[ -n "$ANALYSER_ID" ] || ANALYSER_ID=unknown
 
 # Every external command gets a time limit and a closed stdin.
 #
@@ -131,7 +147,7 @@ PY2
   fi
 
   local t1; t1=$(date +%s)
-  echo "$name,$status,$modules,$findings,$esc,$unk,$sched,$bound,$((t1-t0))" >> "$CSV"
+  echo "$name,$status,$modules,$findings,$esc,$unk,$sched,$bound,$((t1-t0)),$ANALYSER_ID" >> "$CSV"
   printf "\r%-24s %-14s modules=%-5s findings=%-4s (esc=%s sched=%s bound=%s) %ss\n" \
     "$name" "$status" "$modules" "$findings" "$esc" "$sched" "$bound" "$((t1-t0))"
   case "$status" in
