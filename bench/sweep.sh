@@ -146,11 +146,19 @@ PY2
 while read -r name url sub; do
   case "$name" in ''|\#*) continue;; esac
   if [ -n "${REPOS:-}" ] && ! echo " $REPOS " | grep -q " $name "; then continue; fi
-  # Already done in an earlier run? Skip it. This is what makes the sweep
-  # restartable after a hang without repeating hours of work.
-  if [ "${FORCE:-0}" != 1 ] && grep -q "^$name," "$CSV" 2>/dev/null; then
-    printf "%-24s %s\n" "$name" "(already in $(basename "$CSV"), skipping)"
+  # Skip only what actually produced data. A failure is not a result worth
+  # keeping: the first long run lost its network partway through and recorded
+  # 67 repositories as clone_failed, and skipping those on the retry would have
+  # frozen a transient outage into the corpus permanently. ok and partial are
+  # terminal; everything else is retried, which the time limits make cheap.
+  if [ "${FORCE:-0}" != 1 ] \
+     && grep -qE "^$name,(ok|partial)," "$CSV" 2>/dev/null; then
+    printf "%-24s %s\n" "$name" "(done, skipping)"
     continue
+  fi
+  # Drop any earlier failed row for this repo so the CSV keeps one line each.
+  if grep -q "^$name," "$CSV" 2>/dev/null; then
+    grep -v "^$name," "$CSV" > "$CSV.tmp" && mv "$CSV.tmp" "$CSV"
   fi
   run_one "$name" "$url" "${sub:-}"
 done < "${REPOS_FILE:-$ROOT/bench/repos.txt}"
