@@ -24,6 +24,18 @@ mkdir -p "$OUT"
 [ -x "$UNHANDLED" ] || { echo "FATAL: $UNHANDLED not found. Run 'dune build'." >&2; exit 2; }
 [ -d "$WORK" ] || { echo "FATAL: no $WORK. Run bench/sweep.sh first." >&2; exit 2; }
 
+# The checker gets a deadline here for the same reason it does in sweep.sh.
+# dns-client-miou-unix consumes memory for several minutes and is then killed
+# by the OS, and without a limit this script simply stops producing output and
+# looks hung.
+TO=""
+if command -v timeout >/dev/null 2>&1; then TO=timeout
+elif command -v gtimeout >/dev/null 2>&1; then TO=gtimeout
+else echo "warning: no timeout(1); one repository can stall this script." >&2
+fi
+T_CHECK="${T_CHECK:-300}"
+limit () { if [ -n "$TO" ]; then "$TO" "$T_CHECK" "$@" </dev/null; else "$@" </dev/null; fi; }
+
 # Stamp the table with the analyser that produced it, so a reader can tell
 # whether two tables are comparable.
 STAMP="$( (md5 -q "$UNHANDLED" 2>/dev/null || md5sum "$UNHANDLED" 2>/dev/null | cut -d' ' -f1) )"
@@ -44,9 +56,9 @@ for dir in "$WORK"/*/; do
   t0=$(date +%s)
   json="$OUT/$name.recheck.json"
   # A repository that kills the checker must not kill the table.
-  if ! "$UNHANDLED" check "$dir/_build" --json > "$json" 2>/dev/null; then
+  if ! limit "$UNHANDLED" check "$dir/_build" --json > "$json" 2>/dev/null; then
     if [ ! -s "$json" ]; then
-      printf "%-28s %s\n" "$name" "checker failed or was killed, recorded as such"
+      printf "%-28s %s\n" "$name" "checker timed out or was killed by the OS"
       echo "$name,$mods,,,,,," >> "$CSV"
       continue
     fi
