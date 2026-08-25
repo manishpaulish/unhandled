@@ -16,6 +16,16 @@ type t = {
      both the escape check and the boundary check have nothing to report. The
      retroactive batch caught 0 of 6 for exactly this reason. *)
   apis : string list;
+  (* Paths under [apis] that do NOT require the runtime: constructors, vtable
+     builders and non-blocking accessors. Without these the api rule is too
+     blunt, and the first three escapes this tool ever reported on third-party
+     code were all of this kind -- library module initialisers calling
+     Eio.Flow.Pi.source or Eio.Stream.create, neither of which can suspend.
+
+     This list grows only when a false positive is observed AND the function's
+     purity is confirmed in the scheduler's own source. Guessing here trades a
+     false positive for a false negative, which is the worse of the two. *)
+  pure : string list;
   requires : string;  (* representative effect such a call performs *)
 }
 
@@ -27,17 +37,28 @@ let builtin =
                "Eio_posix.run" ];
       prefixes = [ "Eio__core"; "Eio_unix"; "Eio" ];
       apis = [ "Eio."; "Eio_unix."; "Eio__core." ];
+      (* Confirmed against ocaml-multicore/eio @ ab4dd74:
+           lib_eio/flow.mli    Pi.source/sink/shutdown/two_way return a
+                               Resource.handler built from a first-class
+                               module. No I/O, nothing to suspend.
+           lib_eio/resource.mli:59  handler : 't binding list -> handler
+           lib_eio/stream.mli  create allocates a queue; only add and take
+                               block. take_nonblocking, length and is_empty
+                               are documented as not waiting. *)
+      pure = [ "Eio.Flow.Pi."; "Eio.Resource.handler"; "Eio.Stream.create";
+               "Eio.Stream.length"; "Eio.Stream.is_empty";
+               "Eio.Stream.take_nonblocking" ];
       requires = "Eio__core.Suspend.Suspend" };
     { name = "riot"; runs = [ "Riot.run" ]; prefixes = [ "Riot" ];
-      apis = [ "Riot." ]; requires = "Riot.Effects.Receive" };
+      apis = [ "Riot." ]; pure = []; requires = "Riot.Effects.Receive" };
     { name = "moonpool"; runs = [ "Moonpool.run" ]; prefixes = [ "Moonpool" ];
-      apis = []; requires = "Moonpool.Effects.Suspend" };
+      apis = []; pure = []; requires = "Moonpool.Effects.Suspend" };
     { name = "miou"; runs = [ "Miou.run"; "Miou_unix.run" ]; prefixes = [ "Miou" ];
-      apis = []; requires = "Miou.Effects.Suspend" };
+      apis = []; pure = []; requires = "Miou.Effects.Suspend" };
     { name = "mock_a"; runs = [ "Sched_a.run" ]; prefixes = [ "Sched_a" ];
-      apis = []; requires = "Sched_a.Yield" };
+      apis = []; pure = []; requires = "Sched_a.Yield" };
     { name = "mock_b"; runs = [ "Sched_b.run" ]; prefixes = [ "Sched_b" ];
-      apis = []; requires = "Sched_b.Tick" } ]
+      apis = []; pure = []; requires = "Sched_b.Tick" } ]
 
 let table = ref builtin
 let all () = !table
@@ -54,6 +75,7 @@ let describe () =
       List.iter (fun r -> Buffer.add_string b (Printf.sprintf "  run       %s\n" r)) s.runs;
       List.iter (fun p -> Buffer.add_string b (Printf.sprintf "  prefix    %s\n" p)) s.prefixes;
       List.iter (fun a -> Buffer.add_string b (Printf.sprintf "  api       %s\n" a)) s.apis;
+      List.iter (fun p -> Buffer.add_string b (Printf.sprintf "  pure      %s\n" p)) s.pure;
       if s.requires <> "" then
         Buffer.add_string b (Printf.sprintf "  requires  %s\n" s.requires);
       Buffer.add_char b '\n')
@@ -74,7 +96,7 @@ let load_file path =
       | Some s ->
           acc :=
             { s with runs = List.rev s.runs; prefixes = List.rev s.prefixes;
-                     apis = List.rev s.apis }
+                     apis = List.rev s.apis; pure = List.rev s.pure }
             :: !acc
       | None -> ()
     in
@@ -89,10 +111,11 @@ let load_file path =
                let key = String.sub line 0 i in
                let v = String.trim (String.sub line i (String.length line - i)) in
                (match key with
-                | "scheduler" -> flush (); cur := Some { name = v; runs = []; prefixes = []; apis = []; requires = "" }
+                | "scheduler" -> flush (); cur := Some { name = v; runs = []; prefixes = []; apis = []; pure = []; requires = "" }
                 | "run" -> (match !cur with Some s -> cur := Some { s with runs = v :: s.runs } | None -> ())
                 | "prefix" -> (match !cur with Some s -> cur := Some { s with prefixes = v :: s.prefixes } | None -> ())
                 | "api" -> (match !cur with Some s -> cur := Some { s with apis = v :: s.apis } | None -> ())
+                | "pure" -> (match !cur with Some s -> cur := Some { s with pure = v :: s.pure } | None -> ())
                 | "requires" -> (match !cur with Some s -> cur := Some { s with requires = v } | None -> ())
                 | _ -> ())
        done
@@ -134,6 +157,9 @@ let api_requirement path =
     (fun s ->
       if s.requires <> "" && List.exists (fun a -> starts_with a path) s.apis
          && not (List.mem path s.runs)
+         (* A constructor or vtable builder is under the same prefix as the
+            operations but cannot suspend, so it does not imply a runtime. *)
+         && not (List.exists (fun p -> starts_with p path) s.pure)
       then Some (s.name, s.requires)
       else None)
     !table

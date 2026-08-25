@@ -110,6 +110,8 @@ scenario "Eio API under Eio_main.run" test/eio_ok    check    "0 error(s)"
 # The retroactive condition: Eio present as a dependency, with no typed trees.
 scenario "masc shape, Eio has no .cmt" test/eio_nocmt check "Suspend escapes unhandled" \
          "eio.cmt eio__Mutex.cmt"
+# Eio constructors at module init are not effects. Three real false positives.
+scenario "Eio constructors are not effects" test/eio_pure check "0 error(s)" "eio.cmt"
 printf -- "------------------------------------------------------------------------------\n"
 [ $sfail -eq 0 ] && echo "scenarios: all passed" || echo "scenarios: $sfail failed"
 
