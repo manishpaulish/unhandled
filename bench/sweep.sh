@@ -133,7 +133,14 @@ run_one () {
       status=no_cmt
     else
       local json="$OUT/$name.json"
-      "$UNHANDLED" check "$dir/$sub/_build" --json > "$json" 2>>"$log"
+      # The analysis was the one step left unbounded, and it is the step that
+      # ran for an extra 650 seconds on dns-client-miou-unix before the OS
+      # killed it. Our own checker gets a deadline like everything else.
+      limit "${T_CHECK:-600}" "$UNHANDLED" check "$dir/$sub/_build" --json > "$json" 2>>"$log"
+      if [ ! -s "$json" ]; then
+        echo "(check produced no output: timed out, or killed by the OS)" >> "$log"
+        status=check_failed
+      fi
       read -r findings esc unk sched bound < <(python3 - "$json" <<'PY2'
 import json,sys
 try:
