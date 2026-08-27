@@ -11,8 +11,40 @@ let usage () =
     \  unhandled models           print the scheduler model table in force\n\
     \n\
     \  --no-cache                 ignore and do not write the summary cache\n\
-    \  --models <file>            replace the built-in scheduler table\n";
+    \  --models <file>            replace the built-in scheduler table\n\
+    \  --baseline <file>          contract mode: compare against a recorded\n\
+    \                             contract and exit 1 if it changed. Writes the\n\
+    \                             file if it does not exist. For CI.\n\
+    \  --update                   with --baseline, rewrite the file instead of\n\
+    \                             comparing\n";
   exit 2
+
+let read_lines path =
+  if not (Sys.file_exists path) then None
+  else begin
+    let ic = open_in path in
+    let acc = ref [] in
+    (try
+       while true do
+         acc := input_line ic :: !acc
+       done
+     with End_of_file -> ());
+    close_in ic;
+    Some (List.rev !acc)
+  end
+
+let write_lines path lines =
+  let oc = open_out path in
+  List.iter (fun l -> output_string oc (l ^ "\n")) lines;
+  close_out oc
+
+let arg_after flag =
+  let rec go i =
+    if i + 1 >= Array.length Sys.argv then None
+    else if Sys.argv.(i) = flag then Some Sys.argv.(i + 1)
+    else go (i + 1)
+  in
+  go 1
 
 (* The scheduler table is data, not analysis: it says which entry point installs
    handlers for which effects. Shipping it as a file the tool never reads would
@@ -136,6 +168,80 @@ let () =
          count still gets reported, because a contract derived mostly from
          unanalysed calls is worth far less and the reader should know. *)
       let units, env, _ = Driver.analyse files in
+
+      (* Baseline mode, for CI.
+
+         A printed contract is a report, and a report is something a reader
+         either checks or does not. A recorded contract is a guarantee: commit
+         the file, and any change to what a library asks its callers to handle
+         becomes a diff in a pull request and a red build. That is the whole
+         point of extracting the contract mechanically, and without this the
+         tool stops one step short of it.
+
+         The format is deliberately dull: one function per line, effects
+         sorted, whole file sorted, so a diff shows exactly which function
+         gained or lost an effect and nothing else moves. A trailing "?" means
+         the contract is incomplete there because the function calls into code
+         with no .cmt, and that is worth failing on too: a contract that
+         silently became less knowable has changed. *)
+      (match arg_after "--baseline" with
+       | None -> ()
+       | Some path ->
+           let lines =
+             List.concat_map
+               (fun (u : Driver.unit_facts) ->
+                 List.filter_map
+                   (fun (n : Builder.node) ->
+                     let set = Solver.lookup env n.Builder.name in
+                     let known =
+                       List.sort compare
+                         (List.map Effect_id.to_string (Effect_set.known_elements set))
+                     in
+                     if known = [] then None
+                     else
+                       let known =
+                         if Effect_set.has_unknown set then known @ [ "?" ] else known
+                       in
+                       Some (n.Builder.name ^ " " ^ String.concat "," known))
+                   u.Driver.uf_facts.Builder.mf_nodes)
+               units
+             |> List.sort_uniq compare
+           in
+           let header =
+             [ "# unhandled effect contract baseline";
+               "# One line per function: <function> <effect>[,<effect>...][,?]";
+               "# A trailing ? means the contract is incomplete there: the function";
+               "# calls into code with no .cmt available.";
+               "# Regenerate: unhandled contract <dir> --baseline <file> --update" ]
+           in
+           let update = Array.exists (fun a -> a = "--update") Sys.argv in
+           let recorded =
+             match read_lines path with
+             | None -> None
+             | Some ls -> Some (List.filter (fun l -> l = "" || l.[0] <> '#') ls
+                                |> List.filter (fun l -> l <> ""))
+           in
+           (match recorded with
+            | Some old when not update ->
+                let gone = List.filter (fun l -> not (List.mem l lines)) old in
+                let added = List.filter (fun l -> not (List.mem l old)) lines in
+                if gone = [] && added = [] then (
+                  Printf.printf "contract unchanged: %d function(s)\n" (List.length lines);
+                  exit 0)
+                else (
+                  Printf.printf
+                    "contract changed: %d added, %d removed\n\n"
+                    (List.length added) (List.length gone);
+                  List.iter (fun l -> Printf.printf "  + %s\n" l) added;
+                  List.iter (fun l -> Printf.printf "  - %s\n" l) gone;
+                  Printf.printf
+                    "\nIf this is intended, rerun with --update and commit %s\n" path;
+                  exit 1)
+            | _ ->
+                write_lines path (header @ lines);
+                Printf.printf "recorded %d function(s) in %s\n" (List.length lines) path;
+                exit 0));
+
       let unknown = ref 0 in
       List.iter
         (fun (u : Driver.unit_facts) ->

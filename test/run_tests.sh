@@ -141,6 +141,47 @@ else
 fi
 printf -- "------------------------------------------------------------------------------\n"
 
+# -------------------------------------------------------- contract baseline
+# A printed contract is a report. A recorded one is a guarantee: commit the
+# file and any change to what a library asks its callers to handle shows up as
+# a diff and a red build. Three things must hold, and the third is the one
+# that matters: it has to actually fail when the contract moves.
+echo
+echo "contract baseline"
+printf -- "------------------------------------------------------------------------------\n"
+bdir="$ROOT/test/xmodule"
+bfile="$(mktemp)"; rm -f "$bfile"
+( cd "$bdir" && for _ in 1 2 3; do
+    for f in *.ml; do $OCAMLC -bin-annot -c "$f" >/dev/null 2>&1; done
+  done )
+rm -rf "$bdir/.unhandled-cache"
+
+out="$($RUN "$UNHANDLED" contract "$bdir" --baseline "$bfile" 2>&1)"; rc=$?
+if [ $rc -eq 0 ] && echo "$out" | grep -q "^recorded"; then
+  printf "%-40s PASS\n" "first run records the baseline"
+else
+  printf "%-40s FAIL (rc=%s)\n" "first run records the baseline" "$rc"; sfail=$((sfail+1))
+fi
+
+out="$($RUN "$UNHANDLED" contract "$bdir" --baseline "$bfile" 2>&1)"; rc=$?
+if [ $rc -eq 0 ] && echo "$out" | grep -q "contract unchanged"; then
+  printf "%-40s PASS\n" "second run agrees with itself"
+else
+  printf "%-40s FAIL (rc=%s)\n" "second run agrees with itself" "$rc"; sfail=$((sfail+1))
+fi
+
+echo "Svc.invented_function Svc.Ping" >> "$bfile"
+out="$($RUN "$UNHANDLED" contract "$bdir" --baseline "$bfile" 2>&1)"; rc=$?
+if [ $rc -eq 1 ] && echo "$out" | grep -q "contract changed"; then
+  printf "%-40s PASS\n" "a moved contract fails the build"
+else
+  printf "%-40s FAIL (rc=%s)\n" "a moved contract fails the build" "$rc"; sfail=$((sfail+1))
+fi
+
+rm -f "$bfile"
+( cd "$bdir" && rm -f *.cm* && rm -rf .unhandled-cache )
+printf -- "------------------------------------------------------------------------------\n"
+
 # ------------------------------------------------------------------- cache
 # The incremental cache is the one component whose failures are invisible to
 # every other test here, because a wrong answer served from cache looks exactly
