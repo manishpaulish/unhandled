@@ -19,8 +19,26 @@ the point of `perform`. Effect handlers power OCaml 5's concurrency stack
 ships with no static guard against its own failure mode. Typed effect systems
 are active research with no landing date.
 
-`unhandled` is a static analyser that reports effects which can escape, working
-from the compiler's own typed ASTs, with no annotations and no forked compiler.
+The consequence usually discussed is the crash. The consequence that bites
+first is quieter: **there is no way to find out what a library requires of
+you.** No declaration, no signature, no annotation. `Eio.Mutex.use_rw` needs an
+Eio runtime above it and nothing in the type says so. A caller learns this by
+reading the library's source, or by shipping and finding out.
+
+`unhandled` works from the compiler's own typed ASTs, with no annotations and
+no forked compiler, and answers both questions from one analysis:
+
+- **`contract`** states what each function asks its callers to handle. This is
+  the primary output. Section 4.2 reports it for 16 libraries and 458
+  functions, and `docs/ECOSYSTEM-CONTRACTS.md` is the document itself. With
+  `--baseline` the contract is recorded and checked, so a change to it fails a
+  build rather than surprising a downstream user.
+- **`check`** runs the same analysis the other way and reports effects that can
+  escape to a program entry point, with a blame path and an executable
+  witness. Section 4.4 is candid about how that has gone on real code.
+
+The first is the contribution. The second is the one that sounds more exciting
+and has so far produced 31 findings on third-party code, all of them ours.
 
 ## 2. Approach
 
@@ -138,7 +156,26 @@ first real-world findings are all its own fault, found by reading the code it
 accused, is worth more than one that reports three numbers and never checks
 them.
 
-`contract` extracts correct, useful contracts from the same corpus:
+#### The contracts
+
+Across the 39 repositories, **16 have an effect contract: 458 functions in
+total**, the largest being `eio_linux` at 116, `forester` and `picos` at 84
+each, and `cabal` at 50. The other 23 have none, correctly: they perform no
+effects of their own and so ask nothing of their callers. A tool that reported
+a contract for every library would be wrong, and the split is itself a result.
+
+`docs/ECOSYSTEM-CONTRACTS.md` holds the whole thing and regenerates with
+`bash bench/contracts.sh`. It is, as far as we know, the only such document for
+OCaml 5, and it exists because it is derived rather than written: a hand
+maintained version would be stale within a release.
+
+`unhandled contract --baseline <file>` records a contract and then checks
+against it, exiting non-zero when it moves and naming the function and the
+effect that changed. Committed to a repository, that turns "what does this
+library require" from a question answered by reading source into one answered
+by CI.
+
+Sample, from the same corpus:
 
 ```
 module Picos
