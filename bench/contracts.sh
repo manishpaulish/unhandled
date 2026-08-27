@@ -30,6 +30,16 @@ STAMP="$( (md5 -q "$UNHANDLED" 2>/dev/null \
            || md5sum "$UNHANDLED" 2>/dev/null | cut -d' ' -f1) | cut -c1-12 )"
 
 mkdir -p "$(dirname "$OUT")"
+
+# Build in a temp file and move it into place at the end.
+#
+# Appending to the destination as we go looked simpler and was wrong: a first
+# run left running in the background while a second was started truncated the
+# header and then both appended, so eleven libraries landed in the document
+# twice and the function count was inflated by half. A document that cannot
+# survive being generated twice is not one to put in front of anyone.
+TMP="$(mktemp)"
+trap 'rm -f "$TMP"' EXIT
 {
   echo "# Effect contracts, derived"
   echo
@@ -47,7 +57,7 @@ mkdir -p "$(dirname "$OUT")"
   echo
   echo "Analyser build \`$STAMP\`, generated $(date -u +%Y-%m-%d)."
   echo
-} > "$OUT"
+} > "$TMP"
 
 emitted=0
 for dir in "$WORK"/*/; do
@@ -65,10 +75,12 @@ for dir in "$WORK"/*/; do
     echo "$body"
     echo '```'
     echo
-  } >> "$OUT"
+  } >> "$TMP"
   printf "%-28s %s function(s)\n" "$name" "$n"
   emitted=$((emitted+1))
 done
 
 echo
+mv "$TMP" "$OUT"
+trap - EXIT
 echo "$emitted librar(y|ies) with a contract, written to $OUT"
